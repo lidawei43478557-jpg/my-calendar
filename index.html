@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>我的日历</title>
+<meta name="description" content="无广告的个人日历：记事、待办、农历生日提醒、照片背景">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#c0392b">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="我的日历">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="bg-layer"></div>
+<div id="bg-mask"></div>
+
+<!-- 主应用（纯本地存储，无需登录） -->
+<div id="app-view">
+  <div id="env-notice" class="hidden">
+    <span id="env-notice-text"></span>
+    <div class="env-acts">
+      <a id="env-notice-link" class="env-link hidden" href="#" target="_blank" rel="noopener">进入完整模式</a>
+      <button type="button" id="env-notice-copy" class="env-copy hidden">复制地址</button>
+      <button type="button" id="env-notice-btn" class="hidden">重新检测</button>
+    </div>
+    <div id="env-notice-url" class="env-url hidden"></div>
+    <div id="env-qr-box" class="env-qr hidden">
+      <div id="env-qr"></div>
+      <div class="env-qr-tip">用 iPhone 相机扫上面的码，会在 Safari 里打开完整版<br>（或长按上面地址 → 「在新标签页中打开」）</div>
+    </div>
+  </div>
+  <div id="banner" class="hidden"></div>
+  <main id="main">
+
+    <!-- 日历页 -->
+    <section id="view-calendar" class="view">
+
+      <!-- 天气面板 -->
+      <div class="wx-card glass" id="wx-card">
+        <div class="wx-top">
+          <div class="wx-city-row">
+            <span class="wx-pin">📍</span>
+            <span id="wx-city">选择城市</span>
+            <span class="wx-tap">切换 ›</span>
+          </div>
+          <button type="button" id="wx-locate" class="wx-btn" title="定位当前城市">定位</button>
+        </div>
+        <div class="wx-main">
+          <div class="wx-left">
+            <div class="wx-temp"><span id="wx-t">--</span><i>°</i></div>
+            <div class="wx-desc" id="wx-desc">未设置城市</div>
+          </div>
+          <div class="wx-ico" id="wx-ico">🌡</div>
+        </div>
+        <div class="wx-extra" id="wx-extra"></div>
+        <div class="wx-forecast" id="wx-forecast"></div>
+      </div>
+
+      <div class="cal-card glass">
+        <div class="cal-head">
+          <button type="button" id="prev-month" class="nav-btn" aria-label="上一月">‹</button>
+          <div id="cal-title">2026年10月</div>
+          <button type="button" id="next-month" class="nav-btn" aria-label="下一月">›</button>
+          <button type="button" id="btn-today" class="today-btn">今天</button>
+        </div>
+        <div class="weekday-row">
+          <span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span class="weekend">六</span><span class="weekend">日</span>
+        </div>
+        <div id="cal-grid"></div>
+      </div>
+    </section>
+
+    <!-- 生日页 -->
+    <section id="view-birthdays" class="view hidden">
+      <div class="bd-card glass">
+        <div class="sec-head">
+          <h2>生日</h2>
+          <button type="button" id="btn-add-bd" class="primary small">＋ 添加生日</button>
+        </div>
+        <p class="sec-tip">农历生日按当年农历换算公历；导出到系统日历后，每年由 iPhone 自动提醒。</p>
+        <div id="bd-list"></div>
+      </div>
+    </section>
+
+    <!-- 设置页 -->
+    <section id="view-settings" class="view hidden">
+      <div class="st-card glass">
+        <h2>背景照片</h2>
+        <p class="sec-tip">上传照片作为日历背景。照片只保存在这台手机里，不会上传到任何服务器。</p>
+        <div class="field">
+          <input id="bg-upload" type="file" accept="image/*" multiple>
+        </div>
+        <div id="bg-thumbs"></div>
+        <div class="field">
+          <label>显示方式</label>
+          <div class="seg" id="seg-mode">
+            <button type="button" data-v="fixed">固定一张</button>
+            <button type="button" data-v="carousel">自动轮播</button>
+          </div>
+        </div>
+        <div class="field" id="field-current">
+          <label>当前背景</label>
+          <select id="sel-current"></select>
+        </div>
+        <div class="field" id="field-interval">
+          <label>轮播间隔</label>
+          <div class="seg" id="seg-interval">
+            <button type="button" data-v="10">10 秒</button>
+            <button type="button" data-v="30">30 秒</button>
+            <button type="button" data-v="60">60 秒</button>
+          </div>
+        </div>
+        <div class="field">
+          <label>背景明暗 <span id="mask-val">35%</span></label>
+          <input id="mask-slider" type="range" min="0" max="60" value="35">
+          <p class="hint">调高 = 背景更暗、日历文字更清楚</p>
+        </div>
+        <div class="field">
+          <label>日历面板透明度 <span id="card-val">72%</span></label>
+          <input id="card-slider" type="range" min="20" max="100" value="72">
+          <p class="hint">调低 = 背景照片透出来更多（毛玻璃效果）</p>
+        </div>
+      </div>
+      <div class="st-card glass">
+        <h2>添加到主屏幕</h2>
+        <ol class="guide">
+          <li>用 <b>Safari</b> 打开本页</li>
+          <li>点底部中间的 <b>分享</b> 按钮（方框加向上箭头）</li>
+          <li>选择 <b>「添加到主屏幕」</b> → 确认添加</li>
+          <li>回到桌面点开图标，就是全屏无地址栏的 App</li>
+        </ol>
+      </div>
+      <div class="st-card glass">
+        <h2>数据</h2>
+        <p class="sec-tip">所有数据都只存在这台手机上，不联网、不上传、没有账号。换手机前请先导出备份。</p>
+        <p id="usage" class="sec-tip"></p>
+        <div class="field">
+          <button type="button" id="btn-export" class="primary">导出备份文件</button>
+        </div>
+        <div class="field">
+          <label>从备份恢复</label>
+          <input id="btn-import" type="file" accept="application/json,.json">
+        </div>
+        <button type="button" id="btn-clear" class="danger">清空全部数据</button>
+      </div>
+    </section>
+  </main>
+
+  <nav id="tabbar">
+    <button type="button" data-view="view-calendar" class="tab active"><span class="tab-ico">◧</span>日历</button>
+    <button type="button" data-view="view-birthdays" class="tab"><span class="tab-ico">♥</span>生日</button>
+    <button type="button" data-view="view-settings" class="tab"><span class="tab-ico">⚙</span>设置</button>
+  </nav>
+</div>
+
+<!-- 日期详情底部弹层 -->
+<div id="sheet-mask" class="hidden"></div>
+<div id="day-sheet" class="hidden">
+  <div class="sheet-head">
+    <div>
+      <div id="sheet-date" class="sheet-date"></div>
+      <div id="sheet-lunar" class="sheet-lunar"></div>
+    </div>
+    <button type="button" id="sheet-close" class="nav-btn">✕</button>
+  </div>
+  <div class="login-tabs">
+    <button type="button" id="dt-note" class="ltab active">记事</button>
+    <button type="button" id="dt-todo" class="ltab">待办</button>
+  </div>
+  <div id="pane-note">
+    <div id="note-list"></div>
+    <div class="add-row">
+      <input id="note-input" type="text" placeholder="记点什么…" maxlength="200">
+      <button type="button" id="note-add" class="primary">添加</button>
+    </div>
+  </div>
+  <div id="pane-todo" class="hidden">
+    <div id="todo-list"></div>
+    <div class="add-row">
+      <input id="todo-input" type="text" placeholder="要做什么…" maxlength="200">
+      <button type="button" id="todo-add" class="primary">添加</button>
+    </div>
+  </div>
+</div>
+
+<!-- 生日编辑弹层 -->
+<div id="bd-mask" class="hidden"></div>
+<div id="bd-modal" class="hidden">
+  <div class="modal-head">
+    <h3 id="bd-modal-title">添加生日</h3>
+    <button type="button" id="bd-close" class="nav-btn">✕</button>
+  </div>
+  <div class="field"><label>姓名</label><input id="bd-name" type="text" placeholder="怎么称呼 TA" maxlength="20"></div>
+  <div class="field">
+    <label>日期类型</label>
+    <div class="seg" id="seg-bdtype">
+      <button type="button" data-v="solar" class="active">公历</button>
+      <button type="button" data-v="lunar">农历</button>
+    </div>
+  </div>
+  <div class="field"><label>出生年份（选填，用于算年龄）</label><input id="bd-year" type="number" min="1900" max="2100" placeholder="如 1960" inputmode="numeric"></div>
+  <div class="field row3">
+    <select id="bd-month"></select>
+    <select id="bd-day"></select>
+  </div>
+  <label id="bd-leap-row" class="check-row hidden"><input type="checkbox" id="bd-leap"> 闰月</label>
+  <p id="bd-preview" class="preview"></p>
+  <div class="modal-foot">
+    <button type="button" id="bd-ics" class="ghost hidden">导出到系统日历</button>
+    <button type="button" id="bd-del" class="danger hidden">删除</button>
+    <button type="button" id="bd-save" class="primary">保存</button>
+  </div>
+</div>
+
+<!-- 城市选择弹层 -->
+<div id="city-mask" class="hidden"></div>
+<div id="city-modal" class="hidden">
+  <div class="modal-head">
+    <h3>选择城市</h3>
+    <button type="button" id="city-close" class="nav-btn">✕</button>
+  </div>
+  <div class="field">
+    <input id="city-q" type="text" placeholder="输入城市名，如 深圳" autocomplete="off">
+  </div>
+  <div class="field">
+    <label>常用城市</label>
+    <div id="city-hot" class="city-hot"></div>
+  </div>
+  <div id="city-list"></div>
+</div>
+
+<div id="toast"></div>
+
+<script src="js/lunar.js"></script>
+<script src="js/qrcode.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

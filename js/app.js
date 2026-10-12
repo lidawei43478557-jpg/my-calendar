@@ -70,11 +70,83 @@
     return {
       flag: function (ds) {
         var y = ds.slice(0, 4);
-        var o = map[y];
-        return o && o[ds] ? o[ds] : null; // 'work' | 'rest' | null
+        var val = null;
+        var bo = map[y];
+        if (bo && bo[ds]) val = bo[ds];           // 内置安排
+        var u = USER_HOLIDAYS[y];                 // 用户手动录入（优先、可覆盖）
+        if (u) {
+          if (u.work && u.work.indexOf(ds) >= 0) val = 'work'; // 补班优先（班 > 休）
+          else if (u.rest && u.rest.some(function (r) { return ds >= r.s && ds <= r.e; })) {
+            if (val !== 'work') val = 'rest';
+          }
+        }
+        return val; // 'work' | 'rest' | null
       }
     };
   })();
+  /* ---------- 用户在设置页手动录入的节假日 ---------- */
+  function saveUserHolidays() { try { lsSet(K.holidays, USER_HOLIDAYS); } catch (e) { } }
+  function yearKey() { return String(($('hd-year') && $('hd-year').value) || new Date().getFullYear()); }
+  function renderHolidayList() {
+    var box = $('hd-list'); if (!box) return;
+    var y = yearKey();
+    var u = USER_HOLIDAYS[y] || { rest: [], work: [] };
+    var html = '';
+    (u.rest || []).forEach(function (r, i) {
+      var name = r.n ? ('（' + esc(r.n) + '）') : '';
+      html += '<div class="hd-list-item" data-kind="rest" data-i="' + i + '">' +
+        '<span><span class="hd-tag rest">休</span>' + r.s + ' ~ ' + r.e + name + '</span>' +
+        '<button type="button" data-act="del">删除</button></div>';
+    });
+    (u.work || []).forEach(function (d, i) {
+      html += '<div class="hd-list-item" data-kind="work" data-i="' + i + '">' +
+        '<span><span class="hd-tag work">班</span>' + d + '</span>' +
+        '<button type="button" data-act="del">删除</button></div>';
+    });
+    box.innerHTML = html;
+    var tip = $('hd-year-tip');
+    if (tip) tip.textContent = ((u.rest && u.rest.length) || (u.work && u.work.length)) ? ('本页是 ' + y + ' 年已录入的安排') : ('2025/2026 已内置，' + y + ' 年请在此录入');
+  }
+  function addUserRest() {
+    var y = yearKey();
+    var s = ($('hd-rest-s') || {}).value, e = ($('hd-rest-e') || {}).value, n = (($('hd-rest-n') || {}).value || '').trim();
+    if (!s || !e) { toast('请先选起止日期'); return; }
+    if (s > e) { var t = s; s = e; e = t; } // 顺序点反了也不怕
+    if (!USER_HOLIDAYS[y]) USER_HOLIDAYS[y] = { rest: [], work: [] };
+    if (!USER_HOLIDAYS[y].rest) USER_HOLIDAYS[y].rest = [];
+    USER_HOLIDAYS[y].rest.push({ s: s, e: e, n: n });
+    saveUserHolidays(); renderHolidayList(); renderCalendar();
+    toast('已添加 ' + y + ' 放假区间');
+  }
+  function addUserWork() {
+    var y = yearKey();
+    var d = ($('hd-work-d') || {}).value;
+    if (!d) { toast('请先选补班日期'); return; }
+    if (!USER_HOLIDAYS[y]) USER_HOLIDAYS[y] = { rest: [], work: [] };
+    if (!USER_HOLIDAYS[y].work) USER_HOLIDAYS[y].work = [];
+    if (USER_HOLIDAYS[y].work.indexOf(d) < 0) USER_HOLIDAYS[y].work.push(d);
+    saveUserHolidays(); renderHolidayList(); renderCalendar();
+    toast('已添加 ' + y + ' 补班日期');
+  }
+  function delUserHoliday(kind, idx) {
+    var y = yearKey();
+    var u = USER_HOLIDAYS[y]; if (!u) return;
+    if (kind === 'rest' && u.rest) u.rest.splice(idx, 1);
+    if (kind === 'work' && u.work) u.work.splice(idx, 1);
+    if (u.rest && !u.rest.length) delete u.rest;
+    if (u.work && !u.work.length) delete u.work;
+    if (!u.rest && !u.work) delete USER_HOLIDAYS[y];
+    saveUserHolidays(); renderHolidayList(); renderCalendar();
+  }
+  function populateHolidayYears() {
+    var sel = $('hd-year'); if (!sel) return;
+    var cy = new Date().getFullYear();
+    var html = '';
+    for (var y = cy - 2; y <= cy + 6; y++) {
+      html += '<option value="' + y + '"' + (y === cy ? ' selected' : '') + '>' + y + ' 年</option>';
+    }
+    sel.innerHTML = html;
+  }
   /* 心情打卡：四种心情 + 显示色 */
   var MOODS = [
     { k: 'happy', e: '😄', n: '开心', c: '#f0a020' },
@@ -226,8 +298,12 @@
   var K = {
     notes: 'mc.notes', todos: 'mc.todos', bds: 'mc.birthdays', moods: 'mc.moods',
     st: 'mc.settings', cur: 'mc.curPhoto',
-    wcity: 'mc.weatherCity', wdata: 'mc.weatherData'
+    wcity: 'mc.weatherCity', wdata: 'mc.weatherData',
+    holidays: 'mc.holidays'
   };
+  /* 用户在 App 内手动录入的节假日（每年官方公布后自己填），存在本机 localStorage，
+     与内置 HOLIDAYS 合并。结构：{ '2027': { rest: [{s,e,n}], work: ['2027-04-26', ...] }, ... } */
+  var USER_HOLIDAYS = {};
   function genId() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
   function lsGet(k, def) {
     try { var v = localStorage.getItem(k); return v ? JSON.parse(v) : def; } catch (e) { return def; }
@@ -387,6 +463,7 @@
     state.birthdays = lsGet(K.bds, []);
     state.moods = lsGet(K.moods, {}) || {};
     state.settings = lsGet(K.st, { bg_mode: 'fixed', bg_interval: 30, mask_opacity: 0.35 });
+    USER_HOLIDAYS = lsGet(K.holidays, {}) || {};
   }
   function saveNotes() { lsSet(K.notes, state.notes); }
   function saveTodos() { lsSet(K.todos, state.todos); }
@@ -1054,7 +1131,7 @@
     Array.prototype.forEach.call(document.querySelectorAll('#tabbar .tab'), function (t) {
       t.classList.toggle('active', t.getAttribute('data-view') === v);
     });
-    if (v === 'view-settings') updateUsage();
+    if (v === 'view-settings') { updateUsage(); renderHolidayList(); }
   }
 
   /* ---------- 天气（Open-Meteo 免费接口，无需 API Key） ---------- */
@@ -1502,6 +1579,19 @@
       e.target.value = '';
     };
     $('btn-clear').onclick = clearAll;
+
+    /* 节假日数据录入 */
+    populateHolidayYears();
+    $('hd-year').onchange = function () { renderHolidayList(); };
+    $('hd-add-rest').onclick = addUserRest;
+    $('hd-add-work').onclick = addUserWork;
+    $('hd-list').addEventListener('click', function (e) {
+      var btn = e.target.closest('button[data-act="del"]');
+      if (!btn) return;
+      var item = btn.closest('.hd-list-item');
+      if (!item) return;
+      delUserHoliday(item.getAttribute('data-kind'), parseInt(item.getAttribute('data-i'), 10));
+    });
 
     /* 环境提示 */
     var enb = $('env-notice-btn');

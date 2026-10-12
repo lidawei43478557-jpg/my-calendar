@@ -677,11 +677,29 @@
   function isAnimated(file) {
     return /gif$/i.test(file.type) || /\.gif$/i.test(file.name || '');
   }
+  /* iPhone 默认拍出来是 HEIC/HEIF。这种格式在 iOS Safari 上能显示，但用 canvas
+     重编码成 JPEG（drawImage → toBlob）会卡死/失败，表现为「选完点✔后一直转、啥都不加」。
+     所以 HEIC 也像 GIF 一样直接存原文件，不重编码。 */
+  function isHeic(file) {
+    var t = (file.type || '').toLowerCase();
+    return t === 'image/heic' || t === 'image/heif' ||
+      /\.(heic|heif)$/i.test(file.name || '');
+  }
+  /* 给上传加上硬超时：任何一步（图片解码 / canvas 导出）卡住时，N 秒后直接判失败，
+     而不是让整批照片一直挂着（iOS 上最容易因此「等几分钟后什么都没加」）。 */
+  function withTimeout(ms, label, p) {
+    return new Promise(function (res, rej) {
+      var done = false;
+      var t = setTimeout(function () { if (!done) { done = true; rej(new Error(label || '处理超时')); } }, ms);
+      p.then(function (v) { if (!done) { done = true; clearTimeout(t); res(v); } },
+        function (e) { if (!done) { done = true; clearTimeout(t); rej(e); } });
+    });
+  }
   /* iPhone 上原来用 dataURL 解码，一张 1200 万像素的照片会先变成十几 MB 的字符串，
      连传几张就把 Safari 内存吃光，后面的照片全部静默失败（表现为「只能传 3 张」）。
      改成 objectURL 直接给 <img>，用完立刻回收 —— 内存占用降一个数量级。 */
   function compressToBlob(file, maxSide, quality) {
-    return new Promise(function (res, rej) {
+    return withTimeout(10000, '图片解码超时', new Promise(function (res, rej) {
       var url = '';
       try { url = URL.createObjectURL(file); } catch (e) { }
       if (!url) { rej(new Error('无法读取文件')); return; }
@@ -711,7 +729,7 @@
       };
       img.onerror = function () { cleanup(null); rej(new Error('图片解码失败')); };
       img.src = url;
-    });
+    }));
   }
   /* 失败就降一档规格再试一次，还不行才跳过 */
   async function compressWithFallback(file) {
@@ -806,10 +824,11 @@
         if (!f) { skip++; continue; }
         if (!/^image\//.test(f.type)) { skip++; reason('有文件不是图片'); continue; }
         var anim = isAnimated(f);
+        var raw = anim || isHeic(f); // 动图 / HEIC 都保留原文件，不重编码
         if (f.size > (anim ? 25 : 20) * 1024 * 1024) { skip++; reason('单张' + (anim ? '动图' : '照片') + '需小于 ' + (anim ? 25 : 20) + 'MB'); continue; }
         try {
-          // 动图直接存原文件保住动画；静态图压缩到 1024px（省内存，失败会自动再降一档）
-          var blob = anim ? f : await compressWithFallback(f);
+          // 动图 / HEIC 直接存原文件（HEIC 在 iOS 上重编码会卡死）；其余压缩到 1024px（省内存）
+          var blob = raw ? f : await compressWithFallback(f);
           var rec = { id: genId(), blob: blob, type: blob.type || f.type, name: f.name || '', anim: anim, created_at: Date.now() };
           rec._url = URL.createObjectURL(blob);
           state.photos.push(rec);
@@ -1329,10 +1348,13 @@
     });
 
     $('bg-upload').onchange = function (e) {
-      // 必须先拷出 File 引用再清空 input，否则 FileList 会失效，导致只有第一张能存进去
+      // 先把 File 引用拷出来；注意：iOS Safari 下如果立刻清空 input.value，
+      // 刚拿到的 File 引用会被一并失效，导致后面读不到图。所以清空放到上传结束后再做。
       var files = Array.prototype.slice.call(e.target.files || []);
-      e.target.value = '';
-      uploadPhotos(files);
+      if (!files.length) { toast('没选到照片，请重新打开相册再选一次（iOS 有时要重试）'); e.target.value = ''; return; }
+      uploadPhotos(files).finally(function () {
+        try { e.target.value = ''; } catch (_) { }
+      });
     };
     $('bg-thumbs').addEventListener('click', function (e) {
       var b = e.target.closest('button'); if (!b) return;

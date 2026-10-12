@@ -109,7 +109,10 @@
   }
   function addUserRest() {
     var y = yearKey();
-    var s = ($('hd-rest-s') || {}).value, e = ($('hd-rest-e') || {}).value, n = (($('hd-rest-n') || {}).value || '').trim();
+    var s = ($('hd-rest-s') || {}).value, e = ($('hd-rest-e') || {}).value;
+    var nSel = ($('hd-rest-n') || {}).value || '';
+    var n = nSel;
+    if (nSel === '其他（自定义）') n = (($('hd-rest-n-custom') || {}).value || '').trim();
     if (!s || !e) { toast('请先选起止日期'); return; }
     if (s > e) { var t = s; s = e; e = t; } // 顺序点反了也不怕
     if (!USER_HOLIDAYS[y]) USER_HOLIDAYS[y] = { rest: [], work: [] };
@@ -142,10 +145,19 @@
     var sel = $('hd-year'); if (!sel) return;
     var cy = new Date().getFullYear();
     var html = '';
-    for (var y = cy - 2; y <= cy + 6; y++) {
+    // 与日历跨度同步：当前年往前 2 年 + 往后 28 年，共 30 年可选
+    for (var y = cy - 2; y <= cy + 27; y++) {
       html += '<option value="' + y + '"' + (y === cy ? ' selected' : '') + '>' + y + ' 年</option>';
     }
     sel.innerHTML = html;
+  }
+  // 法定假日名称下拉（覆盖每年所有法定节假日），最后一项为自定义
+  var HOLIDAY_NAMES = ['元旦', '春节', '清明节', '劳动节', '端午节', '中秋节', '国庆节', '除夕', '其他（自定义）'];
+  function populateHolidayNames() {
+    var sel = $('hd-rest-n'); if (!sel) return;
+    sel.innerHTML = HOLIDAY_NAMES.map(function (n) {
+      return '<option value="' + esc(n) + '">' + esc(n) + '</option>';
+    }).join('');
   }
   /* 心情打卡：四种心情 + 显示色 */
   var MOODS = [
@@ -1582,7 +1594,13 @@
 
     /* 节假日数据录入 */
     populateHolidayYears();
+    populateHolidayNames();
     $('hd-year').onchange = function () { renderHolidayList(); };
+    $('hd-rest-n').onchange = function () {
+      var show = this.value === '其他（自定义）';
+      $('hd-rest-n-custom').classList.toggle('hidden', !show);
+      if (show) { try { $('hd-rest-n-custom').focus(); } catch (_) { } }
+    };
     $('hd-add-rest').onclick = addUserRest;
     $('hd-add-work').onclick = addUserWork;
     $('hd-list').addEventListener('click', function (e) {

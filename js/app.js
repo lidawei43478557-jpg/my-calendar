@@ -739,6 +739,41 @@
       catch (e2) { throw e; }
     }
   }
+  /* HEIC/HEIF 转成小尺寸 JPEG：
+     - 旧方案直接存原文件，单张 1.5~4MB，传几张就把 iOS 的本地存储配额(IndexedDB)撑爆，
+       之后所有写入全部失败、再也传不进去（用户反馈「8张失败→5张成功→2张失败→1张失败→再传不了」正是这个）。
+     - 用 createImageBitmap 解码 HEIC（iOS 13+ 支持，且不会像 <img> 那样卡死），再画到 canvas 导成
+       1280px / 0.8 的 JPEG，单张降到 100~300KB，配额问题消失。
+     - 整段包超时：万一某一步卡住，8 秒后退回「存原文件」兜底，绝不卡 UI。 */
+  async function heicToJpeg(file) {
+    try {
+      var bmp = await withTimeout(8000, 'HEIC 解码超时',
+        createImageBitmap ? createImageBitmap(file, { imageOrientation: 'from-image' }) : Promise.reject(new Error('不支持')));
+      try {
+        var w = bmp.width, h = bmp.height;
+        var maxSide = 1280, q = 0.8;
+        var sc = Math.min(1, maxSide / Math.max(w, h));
+        var cw = Math.max(1, Math.round(w * sc)), ch = Math.max(1, Math.round(h * sc));
+        var cv = document.createElement('canvas');
+        cv.width = cw; cv.height = ch;
+        cv.getContext('2d').drawImage(bmp, 0, 0, cw, ch);
+        var blob = await withTimeout(8000, 'HEIC 导出超时', new Promise(function (res, rej) {
+          cv.toBlob(function (b) { b ? res(b) : rej(new Error('HEIC 导出失败')); }, 'image/jpeg', q);
+        }));
+        return blob;
+      } finally {
+        try { if (bmp.close) bmp.close(); } catch (e) { }
+        try { cv.width = cv.height = 0; } catch (e) { }
+      }
+    } catch (e) {
+      return null; // 转不动就交回调用方存原文件兜底
+    }
+  }
+  /* 判断是不是「本地存储已满」这类错误，给出明确的用户提示 */
+  function isQuotaError(e) {
+    var m = String((e && (e.name || e.message || '')) || '');
+    return /quota|QuotaExceeded|NS_ERROR_DOM_QUOTA|storage/i.test(m) || (e && e.code === 22);
+  }
   function dataUrlToBlob(u) {
     var p = u.split(','), mime = (p[0].match(/:(.*?);/) || [])[1] || 'image/jpeg';
     var bin = atob(p[1]), arr = new Uint8Array(bin.length);
@@ -817,41 +852,50 @@
     for (var start = 0; start < files.length; start += CHUNK) {
       var slice = Array.prototype.slice.call(files, start, start + CHUNK);
       var batch = [];
-      var batchOk = 0;
       for (var j = 0; j < slice.length; j++) {
         var f = slice[j];
-        if (state.photos.length >= MAX_PHOTOS) { reason('最多 ' + MAX_PHOTOS + ' 张，先删几张再传'); break; }
+        if (state.photos.length + batch.length >= MAX_PHOTOS) { reason('最多 ' + MAX_PHOTOS + ' 张，先删几张再传'); break; }
         if (!f) { skip++; continue; }
         if (!/^image\//.test(f.type)) { skip++; reason('有文件不是图片'); continue; }
         var anim = isAnimated(f);
-        var raw = anim || isHeic(f); // 动图 / HEIC 都保留原文件，不重编码
         if (f.size > (anim ? 25 : 20) * 1024 * 1024) { skip++; reason('单张' + (anim ? '动图' : '照片') + '需小于 ' + (anim ? 25 : 20) + 'MB'); continue; }
         try {
-          // 动图 / HEIC 直接存原文件（HEIC 在 iOS 上重编码会卡死）；其余压缩到 1024px（省内存）
-          var blob = raw ? f : await compressWithFallback(f);
-          var rec = { id: genId(), blob: blob, type: blob.type || f.type, name: f.name || '', anim: anim, created_at: Date.now() };
-          rec._url = URL.createObjectURL(blob);
-          state.photos.push(rec);
+          var blob, isGif = anim;
+          if (anim) {
+            blob = f; // 动图必须保留原文件
+          } else if (isHeic(f)) {
+            var conv = await heicToJpeg(f); // 优先转成小 JPEG，避免原文件太大撑爆本地存储
+            blob = (conv && conv.size) ? conv : f; // 转不动才退回到存原文件
+          } else {
+            blob = await compressWithFallback(f); // 普通照片压缩到 1024px
+          }
+          var rec = { id: genId(), blob: blob, type: blob.type || f.type, name: f.name || '', anim: isGif, created_at: Date.now() };
           batch.push(rec);
-          ok++; batchOk++; if (anim) gif++;
           // 给浏览器一点喘息时间回收内存，连传时更稳（iOS Safari 内存吃紧的关键缓冲）
           await new Promise(function (r) { setTimeout(r, 120); });
         } catch (e) {
           skip++;
-          var m = String((e && (e.name || e.message)) || '');
-          if (/quota|QuotaExceeded|storage/i.test(m)) reason('手机存储空间已满，先删几张照片');
+          if (isQuotaError(e)) reason('手机存储空间已满，先删几张照片');
           else reason('第 ' + (start + j + 1) + ' 张处理失败');
         }
       }
       if (batch.length) {
-        try { await IDB.putMany(batch); }
-        catch (e) { reason('照片已处理但保存到本地失败'); }
-      }
-      if (batchOk) {
-        if (!state.curPhotoId) state.curPhotoId = state.photos[0].id;
-        lsSet(K.cur, state.curPhotoId);
-        renderThumbs(); applyBackground(); updateUsage();
-        toast('处理中…已添加 ' + state.photos.length + ' 张');
+        try {
+          await IDB.putMany(batch);
+          // 只有真正写库成功，才并入内存并刷新 —— 否则会出现「内存里有、库里没有」的脏状态，
+          // 还会让后续的写入判断失真。写失败时释放这批 objectURL，避免内存泄漏。
+          batch.forEach(function (rec) {
+            rec._url = URL.createObjectURL(rec.blob);
+            state.photos.push(rec);
+            ok++; if (rec.anim) gif++;
+          });
+          if (!state.curPhotoId && state.photos.length) { state.curPhotoId = state.photos[0].id; lsSet(K.cur, state.curPhotoId); }
+          renderThumbs(); applyBackground(); updateUsage();
+        } catch (e) {
+          batch.forEach(function (rec) { if (rec._url) { try { URL.revokeObjectURL(rec._url); } catch (x) { } rec._url = null; } });
+          if (isQuotaError(e)) reason('手机本地存储空间已满，请到设置里删掉几张背景照片后再传');
+          else reason('保存到本地失败，请重试');
+        }
       }
     }
     if (ok) {

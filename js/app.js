@@ -24,6 +24,57 @@
     '10-25': '抗美援朝', '11-12': '孙中山诞辰', '12-09': '一二九运动',
     '12-13': '国家公祭日', '12-20': '澳门回归'
   };
+  /* 法定节假日 / 调休补班：每年由国务院公布，没有公式，按年维护。
+     显示规则（参考中华万年历）：休息日（周末 + 放假日期）标红「休」，
+     调休补班日（通常为周末）标蓝「班」，班优先于休。
+     2027 年及以后待国务院公布后再补；未维护的年份不显示角标。 */
+  var HOLIDAYS = (function () {
+    function pad2(n) { return n < 10 ? '0' + n : '' + n; }
+    function rng(y, m, d1, d2) {
+      var a = [];
+      for (var d = d1; d <= d2; d++) a.push(y + '-' + pad2(m) + '-' + pad2(d));
+      return a;
+    }
+    var raw = {
+      2025: {
+        rest: [].concat(
+          ['2025-01-01'],                                   // 元旦（不调休）
+          rng(2025, 1, 28, 31), rng(2025, 2, 1, 4),         // 春节 1/28(除夕)-2/4 共8天
+          ['2025-04-04', '2025-04-05', '2025-04-06'],        // 清明
+          rng(2025, 5, 1, 5),                               // 劳动 5/1-5/5 共5天
+          ['2025-05-31', '2025-06-01', '2025-06-02'],        // 端午
+          rng(2025, 10, 1, 8)                               // 国庆+中秋合并 10/1-10/8 共8天
+        ),
+        work: ['2025-01-26', '2025-02-08', '2025-04-27', '2025-09-28', '2025-10-11']
+      },
+      2026: {
+        rest: [].concat(
+          rng(2026, 1, 1, 3),                               // 元旦 1/1-1/3 共3天
+          rng(2026, 2, 15, 23),                             // 春节（史上最长 9 天）
+          ['2026-04-04', '2026-04-05', '2026-04-06'],        // 清明
+          rng(2026, 5, 1, 5),                               // 劳动 5/1-5/5 共5天
+          ['2026-06-19', '2026-06-20', '2026-06-21'],        // 端午
+          ['2026-09-25', '2026-09-26', '2026-09-27'],        // 中秋
+          rng(2026, 10, 1, 7)                               // 国庆 10/1-10/7 共7天
+        ),
+        work: ['2026-01-04', '2026-02-14', '2026-02-28', '2026-05-09', '2026-09-20', '2026-10-10']
+      }
+    };
+    var map = {};
+    Object.keys(raw).forEach(function (y) {
+      var o = {};
+      (raw[y].rest || []).forEach(function (d) { o[d] = 'rest'; });
+      (raw[y].work || []).forEach(function (d) { o[d] = 'work'; }); // 班 覆盖 休
+      map[y] = o;
+    });
+    return {
+      flag: function (ds) {
+        var y = ds.slice(0, 4);
+        var o = map[y];
+        return o && o[ds] ? o[ds] : null; // 'work' | 'rest' | null
+      }
+    };
+  })();
   /* 心情打卡：四种心情 + 显示色 */
   var MOODS = [
     { k: 'happy', e: '😄', n: '开心', c: '#f0a020' },
@@ -385,10 +436,14 @@
       var cls = 'day-cell' + (out ? ' out-month' : '') + (isToday ? ' today' : '') + (state.selected === ds ? ' selected' : '') + (dow >= 5 ? ' weekend' : '') + (bds.length ? ' has-bd' : '');
       var hasNote = notesOn(ds).length || todosOn(ds).length;
       var mo = out ? null : moodOf(state.moods[ds] || '');
+      // 法定节假日角标：班 > 休；周末也标「休」（参考中华万年历）
+      var hflag = HOLIDAYS.flag(ds);
+      var flagChar = hflag === 'work' ? '班' : (hflag === 'rest' || dow >= 5 ? '休' : '');
       html += '<div class="' + cls + '" data-date="' + ds + '">' +
         '<div class="day-num">' + cd + '</div>' +
         '<div class="day-sub ' + sub.cls + '">' + esc(sub.text) + '</div>' +
         (bds.length ? '<div class="bd-dot">♥</div>' : '') +
+        (flagChar ? '<div class="day-flag ' + (flagChar === '班' ? 'f-work' : 'f-rest') + '">' + flagChar + '</div>' : '') +
         (mo ? '<div class="day-mood">' + mo.e + '</div>' : '') +
         (hasNote ? '<div class="dot"></div>' : '') +
         '</div>';

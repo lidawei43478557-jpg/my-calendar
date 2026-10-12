@@ -158,6 +158,31 @@
         </ol>
       </div>
       <div class="st-card glass">
+        <h2>节假日数据录入</h2>
+        <p class="sec-tip">2025 / 2026 已内置官方数据。每年新安排（如 2027 年五一、国庆、调休补班）等国务院公布后，从这里手动添加即可，存本机、即时生效。</p>
+        <div class="field">
+          <label>年份</label>
+          <select id="hd-year"></select>
+          <p class="hint" id="hd-year-tip"></p>
+        </div>
+        <div class="field">
+          <label>放假区间（起 ~ 止）</label>
+          <div class="hd-row">
+            <input id="hd-rest-s" type="date">
+            <span class="hd-tilde">~</span>
+            <input id="hd-rest-e" type="date">
+          </div>
+          <input id="hd-rest-n" type="text" placeholder="名称（选填，如 五一、国庆）" maxlength="20">
+          <button type="button" id="hd-add-rest" class="primary small">＋ 添加放假区间</button>
+        </div>
+        <div class="field">
+          <label>调休补班日期</label>
+          <input id="hd-work-d" type="date">
+          <button type="button" id="hd-add-work" class="primary small">＋ 添加补班日期</button>
+        </div>
+        <div id="hd-list" class="hd-list"></div>
+      </div>
+      <div class="st-card glass">
         <h2>数据</h2>
         <p class="sec-tip">所有数据都只存在这台手机上，不联网、不上传、没有账号。换手机前请先导出备份。</p>
         <p id="usage" class="sec-tip"></p>

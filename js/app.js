@@ -436,9 +436,9 @@
       var cls = 'day-cell' + (out ? ' out-month' : '') + (isToday ? ' today' : '') + (state.selected === ds ? ' selected' : '') + (dow >= 5 ? ' weekend' : '') + (bds.length ? ' has-bd' : '');
       var hasNote = notesOn(ds).length || todosOn(ds).length;
       var mo = out ? null : moodOf(state.moods[ds] || '');
-      // 法定节假日角标：班 > 休；周末也标「休」（参考中华万年历）
+      // 法定节假日角标：班 > 休；仅法定节假日标「休」，普通周末不标
       var hflag = HOLIDAYS.flag(ds);
-      var flagChar = hflag === 'work' ? '班' : (hflag === 'rest' || dow >= 5 ? '休' : '');
+      var flagChar = hflag === 'work' ? '班' : (hflag === 'rest' ? '休' : '');
       html += '<div class="' + cls + '" data-date="' + ds + '">' +
         '<div class="day-num">' + cd + '</div>' +
         '<div class="day-sub ' + sub.cls + '">' + esc(sub.text) + '</div>' +

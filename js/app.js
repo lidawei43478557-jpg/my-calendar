@@ -15,11 +15,23 @@
   };
   var FEST_SHORT = { '劳动节': '劳动节', '国庆节': '国庆', '儿童节': '儿童节', '妇女节': '妇女节', '植树节': '植树节', '教师节': '教师节', '青年节': '青年节', '万圣节': '万圣节', '平安夜': '平安夜', '圣诞节': '圣诞', '元旦': '元旦', '春节': '春节', '元宵节': '元宵', '端午节': '端午', '中秋节': '中秋', '七夕节': '七夕', '中元节': '中元', '重阳节': '重阳', '腊八节': '腊八', '除夕': '除夕', '寒衣节': '寒衣节', '下元节': '下元节', '龙抬头': '龙抬头', '上巳节': '上巳节', '建党节': '建党节', '建军节': '建军节' };
 
+  /* 国家历史纪念日：显示在日期下方（优先级低于传统节日与节气） */
+  var HIST_DAYS = {
+    '01-21': '列宁逝世纪念', '03-05': '学雷锋日', '04-24': '中国航天日',
+    '05-04': '五四运动', '05-30': '科技工作者日', '07-07': '七七事变',
+    '08-15': '日本投降', '09-03': '抗战胜利', '09-18': '九一八事变',
+    '09-28': '孔子诞辰', '09-30': '烈士纪念日', '10-10': '辛亥革命',
+    '10-25': '抗美援朝', '11-12': '孙中山诞辰', '12-09': '一二九运动',
+    '12-13': '国家公祭日', '12-20': '澳门回归'
+  };
+  var ICS_YEARS = 30;   /* 农历生日导出到系统日历时，往后展开的年数 */
+  var MAX_PHOTOS = 60;  /* 背景照片上限（受手机存储空间约束） */
+
   var state = {
     view: 'view-calendar',
     y: 0, m: 0, today: null, selected: '',
     notes: [], todos: [], birthdays: [], photos: [],
-    settings: { bg_mode: 'fixed', bg_interval: 30, mask_opacity: 0.35, card_opacity: 0.72 },
+    settings: { bg_mode: 'fixed', bg_interval: 30, mask_opacity: 0.35, card_opacity: 0.72, panel_style: 'glass' },
     curPhotoId: null, bgTimer: null, editBdId: null, bdType: 'solar',
     dayBirthdays: []
   };
@@ -216,7 +228,13 @@
   }
 
   /* ---------- 农历 / 节气 / 节日 ---------- */
-  function cellSub(y, m, d) {
+  /* 日期下方那行小字的优先级：
+     生日姓名 > 传统节日 > 节气 > 国家历史纪念日 > 农历日期 */
+  function cellSub(y, m, d, bds) {
+    if (bds && bds.length) {
+      var names = bds.map(function (b) { return b.name; }).join('、');
+      return { text: names, cls: 'bdname' };
+    }
     try {
       var solar = SOLAR.fromYmd(y, m + 1, d);
       var lunar = solar.getLunar();
@@ -225,6 +243,10 @@
       var jq = lunar.getJieQi() || '';
       if (lf) return { text: shortName(lf), cls: 'festival' };
       if (sf) return { text: shortName(sf), cls: 'festival' };
+      // 历史纪念排在节气前面：像 7/7 七七事变常和小暑同一天，
+      // 这种日子用户更想看到事变纪念（中华万年历也是这么排的）
+      var hd = HIST_DAYS[pad(m + 1) + '-' + pad(d)];
+      if (hd) return { text: hd, cls: 'hist' };
       if (jq) return { text: jq, cls: 'jieqi' };
       var dayIdx = Math.abs(lunar.getDay()) - 1;
       if (dayIdx <= 0) return { text: MONTH_CN[Math.abs(lunar.getMonth()) - 1] || '', cls: '' };
@@ -331,12 +353,12 @@
       else if (i >= startDow + daysInMonth) { var k = i - (startDow + daysInMonth) + 1; cy = state.m === 11 ? state.y + 1 : state.y; cm = state.m === 11 ? 0 : state.m + 1; cd = k; out = true; }
       else { cy = state.y; cm = state.m; cd = i - startDow + 1; }
       var ds = cy + '-' + pad(cm + 1) + '-' + pad(cd);
-      var sub = out ? { text: '', cls: '' } : cellSub(cy, cm, cd);
+      var bds = out ? [] : birthdaysOn(ds);
+      var sub = out ? { text: '', cls: '' } : cellSub(cy, cm, cd, bds);
       var isToday = ymd(state.today) === ds;
       var dow = (i % 7);
-      var cls = 'day-cell' + (out ? ' out-month' : '') + (isToday ? ' today' : '') + (state.selected === ds ? ' selected' : '') + (dow >= 5 ? ' weekend' : '');
+      var cls = 'day-cell' + (out ? ' out-month' : '') + (isToday ? ' today' : '') + (state.selected === ds ? ' selected' : '') + (dow >= 5 ? ' weekend' : '') + (bds.length ? ' has-bd' : '');
       var hasNote = notesOn(ds).length || todosOn(ds).length;
-      var bds = out ? [] : birthdaysOn(ds);
       html += '<div class="' + cls + '" data-date="' + ds + '">' +
         '<div class="day-num">' + cd + '</div>' +
         '<div class="day-sub ' + sub.cls + '">' + esc(sub.text) + '</div>' +
@@ -515,7 +537,7 @@
       L.push('RRULE:FREQ=YEARLY');
     } else {
       var y0 = state.today.getFullYear();
-      for (var i = 0; i < 20; i++) {
+      for (var i = 0; i < ICS_YEARS; i++) {
         var y = y0 + i, dd = birthdaySolarForYear(bd, y);
         if (dd) L = L.concat(ev('bd-' + bd.id + '-' + y + '@mycalendar', dd, title));
       }
@@ -603,8 +625,10 @@
           var cv = document.createElement('canvas');
           cv.width = cw; cv.height = ch;
           cv.getContext('2d').drawImage(img, 0, 0, cw, ch);
-          if (cv.toBlob) cv.toBlob(function (b) { b ? res(b) : rej(new Error('压缩失败')); }, 'image/jpeg', 0.82);
-          else res(dataUrlToBlob(cv.toDataURL('image/jpeg', 0.82)));
+          // Safari 内存吃紧会让后续几张静默失败，用完立刻把画布释放掉
+          function done(b) { try { cv.width = cv.height = 0; } catch (e) { } img.src = ''; res(b); }
+          if (cv.toBlob) cv.toBlob(function (b) { b ? done(b) : rej(new Error('压缩失败')); }, 'image/jpeg', 0.8);
+          else done(dataUrlToBlob(cv.toDataURL('image/jpeg', 0.8)));
         };
         img.onerror = function () { rej(new Error('图片解码失败')); };
         img.src = fr.result;
@@ -667,6 +691,8 @@
   }
   function renderThumbs() {
     var box = $('bg-thumbs');
+    var cnt = $('photo-count');
+    if (cnt) cnt.textContent = state.photos.length ? ('已上传 ' + state.photos.length + ' / ' + MAX_PHOTOS + ' 张') : '';
     if (!state.photos.length) { box.innerHTML = '<div class="bg-empty">还没有上传照片</div>'; $('sel-current').innerHTML = ''; return; }
     var html = '', opts = '';
     for (var i = 0; i < state.photos.length; i++) {
@@ -684,28 +710,41 @@
   async function uploadPhotos(files) {
     if (!files || !files.length) return;
     toast('处理中…');
-    var ok = 0, gif = 0, skip = 0;
+    var ok = 0, gif = 0, skip = 0, why = [];
+    function reason(s) { if (why.indexOf(s) < 0) why.push(s); }
     for (var i = 0; i < files.length; i++) {
       var f = files[i];
-      if (!/^image\//.test(f.type)) { skip++; continue; }
+      if (state.photos.length >= MAX_PHOTOS) { reason('最多 ' + MAX_PHOTOS + ' 张，先删几张再传'); break; }
+      if (!f) { skip++; continue; }
+      if (!/^image\//.test(f.type)) { skip++; reason('有文件不是图片'); continue; }
       var anim = isAnimated(f);
-      if (f.size > (anim ? 25 : 20) * 1024 * 1024) { skip++; toast('单张' + (anim ? '动图' : '照片') + '需小于 ' + (anim ? 25 : 20) + 'MB'); continue; }
+      if (f.size > (anim ? 25 : 20) * 1024 * 1024) { skip++; reason('单张' + (anim ? '动图' : '照片') + '需小于 ' + (anim ? 25 : 20) + 'MB'); continue; }
       try {
-        // 动图直接存原文件保住动画；静态图压缩到 1600px 省空间
-        var blob = anim ? f : await compressToBlob(f, 1600);
+        // 动图直接存原文件保住动画；静态图压缩到 1280px（原 1600，太吃内存会让后几张失败）
+        var blob = anim ? f : await compressToBlob(f, 1280);
         var rec = { id: genId(), blob: blob, type: blob.type || f.type, name: f.name || '', anim: anim, created_at: Date.now() };
         await IDB.put(rec);
         rec._url = URL.createObjectURL(blob);
         state.photos.push(rec);
         ok++; if (anim) gif++;
-      } catch (e) { skip++; }
+      } catch (e) {
+        skip++;
+        var m = String((e && (e.name || e.message)) || '');
+        if (/quota|QuotaExceeded|storage/i.test(m)) reason('手机存储空间已满，先删几张照片');
+        else reason('第 ' + (i + 1) + ' 张处理失败');
+      }
     }
     if (ok) {
       if (!state.curPhotoId) state.curPhotoId = state.photos[0].id;
       lsSet(K.cur, state.curPhotoId);
       renderThumbs(); applyBackground(); updateUsage();
     }
-    toast(ok ? ('已添加 ' + ok + ' 张' + (gif ? '（含 ' + gif + ' 张动图）' : '') + (skip ? '，跳过 ' + skip + ' 个' : '')) : '没有可用的图片');
+    if (ok) {
+      toast('已添加 ' + ok + ' 张' + (gif ? '（含 ' + gif + ' 张动图）' : '') + '，共 ' + state.photos.length + ' 张' +
+        (why.length ? '；' + why.join('、') : ''));
+    } else {
+      toast(why.length ? why.join('、') : '没有可用的图片');
+    }
   }
   async function removePhoto(id) {
     var p = state.photos.filter(function (x) { return x.id === id; })[0];
@@ -956,6 +995,8 @@
       $('card-val').textContent = Math.round(state.settings.card_opacity * 100) + '%';
     }
     applyCardOpacity();
+    applyPanelStyle();
+    segSet('seg-panel', state.settings.panel_style || 'glass');
     segSet('seg-mode', state.settings.bg_mode);
     segSet('seg-interval', String(state.settings.bg_interval));
     $('field-interval').classList.toggle('hidden', state.settings.bg_mode !== 'carousel');
@@ -972,6 +1013,14 @@
   function applyCardOpacity() {
     var v = (typeof state.settings.card_opacity === 'number') ? state.settings.card_opacity : 0.72;
     document.documentElement.style.setProperty('--card-a', String(v));
+  }
+  /* 面板样式：glass = 毛玻璃；clear = 半透（不模糊，背景照片直接透出来）。
+     半透模式下日期文字会加白色描边，即使面板透明度拉到 0 也看得清。 */
+  function applyPanelStyle() {
+    var v = state.settings.panel_style || 'glass';
+    var cl = document.body.classList;
+    cl.toggle('panel-clear', v === 'clear');
+    cl.toggle('panel-glass', v !== 'clear');
   }
 
   /* ---------- 事件 ---------- */
@@ -1129,6 +1178,14 @@
       state.curPhotoId = $('sel-current').value;
       lsSet(K.cur, state.curPhotoId);
       renderThumbs(); applyBackground();
+    };
+    $('seg-panel').onclick = function (e) {
+      var b = e.target.closest('button'); if (!b) return;
+      var v = b.getAttribute('data-v');
+      segSet('seg-panel', v);
+      saveSettings({ panel_style: v });
+      applyPanelStyle();
+      toast(v === 'clear' ? '已切到半透面板，背景照片会直接透出来' : '已切回毛玻璃面板');
     };
     $('seg-mode').onclick = function (e) {
       var b = e.target.closest('button'); if (!b) return;

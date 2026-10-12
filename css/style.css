@@ -352,6 +352,29 @@ input[type="range"] { width: 100%; accent-color: var(--red); }
 }
 .primary.small { width: auto; padding: 10px 18px; font-size: 14px; min-height: 36px; }
 .primary:disabled { opacity: 0.5; }
+
+/* 节假日数据录入面板 */
+.hd-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.hd-row input { flex: 1; }
+.hd-tilde { color: var(--muted); font-size: 15px; }
+.field #hd-rest-n { margin-bottom: 10px; }
+.hd-list { margin-top: 4px; display: flex; flex-direction: column; gap: 8px; }
+.hd-list-item {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 10px; padding: 10px 12px; border-radius: 10px;
+  background: rgba(0, 0, 0, 0.04); font-size: 14px;
+}
+.hd-list-item > span { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; }
+.hd-list-item .hd-tag {
+  flex: none; font-size: 12px; line-height: 1; padding: 3px 7px; border-radius: 6px; font-weight: 600;
+}
+.hd-list-item .hd-tag.rest { color: #e23b3b; background: rgba(226, 59, 59, 0.12); }
+.hd-list-item .hd-tag.work { color: #fff; background: rgba(43, 125, 233, 0.92); }
+.hd-list-item button[data-act="del"] {
+  flex: none; border: 1px solid rgba(0, 0, 0, 0.12); background: transparent;
+  color: var(--muted); font-size: 13px; padding: 6px 12px; border-radius: 8px;
+}
+.hd-list-item button[data-act="del"]:active { background: rgba(0, 0, 0, 0.06); }
 .danger {
   border: 1px solid rgba(217, 59, 48, 0.35); color: var(--red);
   background: rgba(255, 255, 255, 0.7);

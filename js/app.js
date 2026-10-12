@@ -24,13 +24,24 @@
     '10-25': '抗美援朝', '11-12': '孙中山诞辰', '12-09': '一二九运动',
     '12-13': '国家公祭日', '12-20': '澳门回归'
   };
+  /* 心情打卡：四种心情 + 显示色 */
+  var MOODS = [
+    { k: 'happy', e: '😄', n: '开心', c: '#f0a020' },
+    { k: 'calm', e: '😌', n: '平静', c: '#3fa87a' },
+    { k: 'tired', e: '😪', n: '疲惫', c: '#8a7fb8' },
+    { k: 'bad', e: '😞', n: '糟糕', c: '#5b7fbd' }
+  ];
+  function moodOf(k) {
+    for (var i = 0; i < MOODS.length; i++) if (MOODS[i].k === k) return MOODS[i];
+    return null;
+  }
   var ICS_YEARS = 30;   /* 农历生日导出到系统日历时，往后展开的年数 */
   var MAX_PHOTOS = 60;  /* 背景照片上限（受手机存储空间约束） */
 
   var state = {
     view: 'view-calendar',
     y: 0, m: 0, today: null, selected: '',
-    notes: [], todos: [], birthdays: [], photos: [],
+    notes: [], todos: [], birthdays: [], photos: [], moods: {},
     settings: { bg_mode: 'fixed', bg_interval: 30, mask_opacity: 0.35, card_opacity: 0.72, panel_style: 'glass' },
     curPhotoId: null, bgTimer: null, editBdId: null, bdType: 'solar',
     dayBirthdays: []
@@ -162,7 +173,7 @@
 
   /* ---------- 本地存储 ---------- */
   var K = {
-    notes: 'mc.notes', todos: 'mc.todos', bds: 'mc.birthdays',
+    notes: 'mc.notes', todos: 'mc.todos', bds: 'mc.birthdays', moods: 'mc.moods',
     st: 'mc.settings', cur: 'mc.curPhoto',
     wcity: 'mc.weatherCity', wdata: 'mc.weatherData'
   };
@@ -207,6 +218,18 @@
         });
       },
       put: function (rec) { return store('readwrite').then(function (s) { return wrap(s.put(rec)); }); },
+      /* 一批照片只开一个事务，比逐张开快很多（尤其手机上） */
+      putMany: function (recs) {
+        return store('readwrite').then(function (s) {
+          return new Promise(function (res, rej) {
+            var tx = s.transaction;
+            tx.oncomplete = function () { res(true); };
+            tx.onerror = function () { rej(tx.error || new Error('写入失败')); };
+            tx.onabort = function () { rej(tx.error || new Error('写入被中断')); };
+            recs.forEach(function (r) { s.put(r); });
+          });
+        });
+      },
       del: function (id) { return store('readwrite').then(function (s) { return wrap(s.delete(id)); }); },
       clear: function () { return store('readwrite').then(function (s) { return wrap(s.clear()); }); }
     };
@@ -311,11 +334,13 @@
     state.notes = lsGet(K.notes, []);
     state.todos = lsGet(K.todos, []);
     state.birthdays = lsGet(K.bds, []);
+    state.moods = lsGet(K.moods, {}) || {};
     state.settings = lsGet(K.st, { bg_mode: 'fixed', bg_interval: 30, mask_opacity: 0.35 });
   }
   function saveNotes() { lsSet(K.notes, state.notes); }
   function saveTodos() { lsSet(K.todos, state.todos); }
   function saveBds() { lsSet(K.bds, state.birthdays); }
+  function saveMoods() { lsSet(K.moods, state.moods); }
   function saveSettings(patch) {
     Object.keys(patch || {}).forEach(function (k) { state.settings[k] = patch[k]; });
     lsSet(K.st, state.settings);
@@ -359,15 +384,53 @@
       var dow = (i % 7);
       var cls = 'day-cell' + (out ? ' out-month' : '') + (isToday ? ' today' : '') + (state.selected === ds ? ' selected' : '') + (dow >= 5 ? ' weekend' : '') + (bds.length ? ' has-bd' : '');
       var hasNote = notesOn(ds).length || todosOn(ds).length;
+      var mo = out ? null : moodOf(state.moods[ds] || '');
       html += '<div class="' + cls + '" data-date="' + ds + '">' +
         '<div class="day-num">' + cd + '</div>' +
         '<div class="day-sub ' + sub.cls + '">' + esc(sub.text) + '</div>' +
         (bds.length ? '<div class="bd-dot">♥</div>' : '') +
+        (mo ? '<div class="day-mood">' + mo.e + '</div>' : '') +
         (hasNote ? '<div class="dot"></div>' : '') +
         '</div>';
       if (i >= startDow + daysInMonth && (i % 7) === 6) break;
     }
     grid.innerHTML = html;
+    renderMoodCard();
+  }
+
+  /* ---------- 心情月历 ---------- */
+  function renderMoodCard() {
+    var box = $('mood-strip'), stat = $('mood-stat'), lab = $('mood-month');
+    if (!box || !stat) return;
+    if (lab) lab.textContent = (state.m + 1) + '月';
+    var startDow = (new Date(state.y, state.m, 1).getDay() + 6) % 7;
+    var days = new Date(state.y, state.m + 1, 0).getDate();
+    var counts = { happy: 0, calm: 0, tired: 0, bad: 0 }, total = 0;
+    var html = '';
+    for (var i = 0; i < startDow; i++) html += '<div class="mood-day pad"></div>';
+    for (var d = 1; d <= days; d++) {
+      var ds = state.y + '-' + pad(state.m + 1) + '-' + pad(d);
+      var mo = moodOf(state.moods[ds] || '');
+      if (mo) { counts[mo.k]++; total++; }
+      html += '<button type="button" class="mood-day' + (mo ? ' has' : '') + '" data-date="' + ds + '"' +
+        (mo ? ' style="background:' + mo.c + '26"' : '') + '>' + (mo ? mo.e : '') + '</button>';
+    }
+    box.innerHTML = html;
+    if (!total) { stat.innerHTML = '<div class="mood-empty">这个月还没打卡，点开任意日期选个表情就行</div>'; return; }
+    var sh = '', top = null;
+    MOODS.forEach(function (m) {
+      if (counts[m.k]) sh += '<span class="mood-chip">' + m.e + ' ' + m.n + ' <b>' + counts[m.k] + '</b> 天</span>';
+      if (!top || counts[m.k] > counts[top]) top = m.k;
+    });
+    if (top) sh += '<span class="mood-chip">本月主调 <b>' + moodOf(top).n + '</b></span>';
+    stat.innerHTML = sh;
+  }
+  function renderMoodPick() {
+    var pick = $('mood-pick'); if (!pick) return;
+    var cur = state.moods[state.selected] || '';
+    Array.prototype.forEach.call(pick.querySelectorAll('.mood-btn'), function (b) {
+      b.classList.toggle('active', b.getAttribute('data-m') === cur);
+    });
   }
 
   function renderBanner() {
@@ -395,6 +458,7 @@
       fes = pickFest(so.getLunar().getFestivals() || []) || pickFest(so.getFestivals() || []);
     } catch (e) { }
     $('sheet-lunar').textContent = [lt, jq, fes].filter(Boolean).join(' · ');
+    renderMoodPick();
     renderDayItems();
     $('sheet-mask').classList.remove('hidden');
     $('day-sheet').classList.remove('hidden');
@@ -613,29 +677,49 @@
   function isAnimated(file) {
     return /gif$/i.test(file.type) || /\.gif$/i.test(file.name || '');
   }
-  function compressToBlob(file, maxSide) {
+  /* iPhone 上原来用 dataURL 解码，一张 1200 万像素的照片会先变成十几 MB 的字符串，
+     连传几张就把 Safari 内存吃光，后面的照片全部静默失败（表现为「只能传 3 张」）。
+     改成 objectURL 直接给 <img>，用完立刻回收 —— 内存占用降一个数量级。 */
+  function compressToBlob(file, maxSide, quality) {
     return new Promise(function (res, rej) {
-      var fr = new FileReader();
-      fr.onload = function () {
-        var img = new Image();
-        img.onload = function () {
+      var url = '';
+      try { url = URL.createObjectURL(file); } catch (e) { }
+      if (!url) { rej(new Error('无法读取文件')); return; }
+      var q = quality || 0.72;
+      var img = new Image();
+      function cleanup(cv) {
+        try { URL.revokeObjectURL(url); } catch (e) { }
+        try { img.src = ''; } catch (e) { }
+        try { if (cv) { cv.width = cv.height = 0; } } catch (e) { }
+      }
+      img.onload = function () {
+        var cv = null;
+        try {
           var w = img.width, h = img.height;
           var sc = Math.min(1, maxSide / Math.max(w, h));
           var cw = Math.max(1, Math.round(w * sc)), ch = Math.max(1, Math.round(h * sc));
-          var cv = document.createElement('canvas');
+          cv = document.createElement('canvas');
           cv.width = cw; cv.height = ch;
           cv.getContext('2d').drawImage(img, 0, 0, cw, ch);
-          // Safari 内存吃紧会让后续几张静默失败，用完立刻把画布释放掉
-          function done(b) { try { cv.width = cv.height = 0; } catch (e) { } img.src = ''; res(b); }
-          if (cv.toBlob) cv.toBlob(function (b) { b ? done(b) : rej(new Error('压缩失败')); }, 'image/jpeg', 0.8);
-          else done(dataUrlToBlob(cv.toDataURL('image/jpeg', 0.8)));
-        };
-        img.onerror = function () { rej(new Error('图片解码失败')); };
-        img.src = fr.result;
+          if (cv.toBlob) {
+            cv.toBlob(function (b) { cleanup(cv); b ? res(b) : rej(new Error('压缩失败')); }, 'image/jpeg', q);
+          } else {
+            var out = dataUrlToBlob(cv.toDataURL('image/jpeg', q));
+            cleanup(cv); res(out);
+          }
+        } catch (e) { cleanup(cv); rej(e); }
       };
-      fr.onerror = function () { rej(new Error('文件读取失败')); };
-      fr.readAsDataURL(file);
+      img.onerror = function () { cleanup(null); rej(new Error('图片解码失败')); };
+      img.src = url;
     });
+  }
+  /* 失败就降一档规格再试一次，还不行才跳过 */
+  async function compressWithFallback(file) {
+    try { return await compressToBlob(file, 1024, 0.72); }
+    catch (e) {
+      try { return await compressToBlob(file, 800, 0.62); }
+      catch (e2) { throw e; }
+    }
   }
   function dataUrlToBlob(u) {
     var p = u.split(','), mime = (p[0].match(/:(.*?);/) || [])[1] || 'image/jpeg';
@@ -709,35 +793,47 @@
   }
   async function uploadPhotos(files) {
     if (!files || !files.length) return;
-    toast('处理中…');
     var ok = 0, gif = 0, skip = 0, why = [];
     function reason(s) { if (why.indexOf(s) < 0) why.push(s); }
-    for (var i = 0; i < files.length; i++) {
-      var f = files[i];
-      if (state.photos.length >= MAX_PHOTOS) { reason('最多 ' + MAX_PHOTOS + ' 张，先删几张再传'); break; }
-      if (!f) { skip++; continue; }
-      if (!/^image\//.test(f.type)) { skip++; reason('有文件不是图片'); continue; }
-      var anim = isAnimated(f);
-      if (f.size > (anim ? 25 : 20) * 1024 * 1024) { skip++; reason('单张' + (anim ? '动图' : '照片') + '需小于 ' + (anim ? 25 : 20) + 'MB'); continue; }
-      try {
-        // 动图直接存原文件保住动画；静态图压缩到 1280px（原 1600，太吃内存会让后几张失败）
-        var blob = anim ? f : await compressToBlob(f, 1280);
-        var rec = { id: genId(), blob: blob, type: blob.type || f.type, name: f.name || '', anim: anim, created_at: Date.now() };
-        await IDB.put(rec);
-        rec._url = URL.createObjectURL(blob);
-        state.photos.push(rec);
-        ok++; if (anim) gif++;
-      } catch (e) {
-        skip++;
-        var m = String((e && (e.name || e.message)) || '');
-        if (/quota|QuotaExceeded|storage/i.test(m)) reason('手机存储空间已满，先删几张照片');
-        else reason('第 ' + (i + 1) + ' 张处理失败');
+    var CHUNK = 3; // 每 3 张写一次库并刷新一次缩略图，既省事务开销又能看到进度
+    for (var start = 0; start < files.length; start += CHUNK) {
+      var slice = Array.prototype.slice.call(files, start, start + CHUNK);
+      var batch = [];
+      var batchOk = 0;
+      for (var j = 0; j < slice.length; j++) {
+        var f = slice[j];
+        if (state.photos.length >= MAX_PHOTOS) { reason('最多 ' + MAX_PHOTOS + ' 张，先删几张再传'); break; }
+        if (!f) { skip++; continue; }
+        if (!/^image\//.test(f.type)) { skip++; reason('有文件不是图片'); continue; }
+        var anim = isAnimated(f);
+        if (f.size > (anim ? 25 : 20) * 1024 * 1024) { skip++; reason('单张' + (anim ? '动图' : '照片') + '需小于 ' + (anim ? 25 : 20) + 'MB'); continue; }
+        try {
+          // 动图直接存原文件保住动画；静态图压缩到 1024px（省内存，失败会自动再降一档）
+          var blob = anim ? f : await compressWithFallback(f);
+          var rec = { id: genId(), blob: blob, type: blob.type || f.type, name: f.name || '', anim: anim, created_at: Date.now() };
+          rec._url = URL.createObjectURL(blob);
+          state.photos.push(rec);
+          batch.push(rec);
+          ok++; batchOk++; if (anim) gif++;
+          // 给浏览器一点喘息时间回收内存，连传时更稳（iOS Safari 内存吃紧的关键缓冲）
+          await new Promise(function (r) { setTimeout(r, 120); });
+        } catch (e) {
+          skip++;
+          var m = String((e && (e.name || e.message)) || '');
+          if (/quota|QuotaExceeded|storage/i.test(m)) reason('手机存储空间已满，先删几张照片');
+          else reason('第 ' + (start + j + 1) + ' 张处理失败');
+        }
       }
-    }
-    if (ok) {
-      if (!state.curPhotoId) state.curPhotoId = state.photos[0].id;
-      lsSet(K.cur, state.curPhotoId);
-      renderThumbs(); applyBackground(); updateUsage();
+      if (batch.length) {
+        try { await IDB.putMany(batch); }
+        catch (e) { reason('照片已处理但保存到本地失败'); }
+      }
+      if (batchOk) {
+        if (!state.curPhotoId) state.curPhotoId = state.photos[0].id;
+        lsSet(K.cur, state.curPhotoId);
+        renderThumbs(); applyBackground(); updateUsage();
+        toast('处理中…已添加 ' + state.photos.length + ' 张');
+      }
     }
     if (ok) {
       toast('已添加 ' + ok + ' 张' + (gif ? '（含 ' + gif + ' 张动图）' : '') + '，共 ' + state.photos.length + ' 张' +
@@ -770,7 +866,7 @@
     }
     var data = {
       app: 'my-calendar', v: 2, exported_at: new Date().toISOString(),
-      notes: state.notes, todos: state.todos, birthdays: state.birthdays,
+      notes: state.notes, todos: state.todos, birthdays: state.birthdays, moods: state.moods,
       settings: state.settings, photos: photos
     };
     downloadFile('我的日历备份-' + ymd(new Date()) + '.json', JSON.stringify(data), 'application/json;charset=utf-8', false);
@@ -784,8 +880,9 @@
       if (!confirm('导入会覆盖当前所有数据，确定继续？')) return;
       state.notes = d.notes || []; state.todos = d.todos || [];
       state.birthdays = d.birthdays || [];
+      state.moods = d.moods || {};
       state.settings = d.settings || state.settings;
-      saveNotes(); saveTodos(); saveBds(); lsSet(K.st, state.settings);
+      saveNotes(); saveTodos(); saveBds(); saveMoods(); lsSet(K.st, state.settings);
       releasePhotoUrls();
       await IDB.clear();
       var photos = d.photos || [];
@@ -807,7 +904,7 @@
     if (!confirm('再确认一次：真的要清空全部数据吗？')) return;
     releasePhotoUrls();
     try { await IDB.clear(); } catch (e) { }
-    [K.notes, K.todos, K.bds, K.st, K.cur, K.wcity].forEach(function (k) { localStorage.removeItem(k); });
+    [K.notes, K.todos, K.bds, K.moods, K.st, K.cur, K.wcity].forEach(function (k) { localStorage.removeItem(k); });
     toast('已清空');
     setTimeout(function () { location.reload(); }, 800);
   }
@@ -869,6 +966,26 @@
     return ['周日', '周一', '周二', '周三', '周四', '周五', '周六'][w];
   }
   function mdShort(ds) { var p = ds.split('-'); return (+p[1]) + '/' + (+p[2]); }
+  /* 穿衣建议：按体感温度分档，再按天气码补一句提醒 */
+  var RAIN_CODES = [51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82, 95, 96, 99];
+  var SNOW_CODES = [71, 73, 75, 77, 85, 86];
+  function dressingTip(t, code) {
+    if (typeof t !== 'number' || isNaN(t)) return '';
+    var s;
+    if (t >= 32) s = '短袖短裤，尽量避开正午外出';
+    else if (t >= 28) s = '短袖短裤，注意防晒补水';
+    else if (t >= 24) s = '短袖为主，出汗后别吹冷风';
+    else if (t >= 20) s = '单件长袖，或短袖加件薄外套';
+    else if (t >= 15) s = '长袖＋外套，早晚偏凉';
+    else if (t >= 10) s = '毛衣／卫衣＋外套';
+    else if (t >= 5) s = '厚外套＋毛衣，注意保暖';
+    else if (t >= 0) s = '棉服或薄羽绒';
+    else s = '羽绒服＋保暖内衣，戴好帽子手套';
+    if (RAIN_CODES.indexOf(code) >= 0) s += '，出门带伞';
+    else if (SNOW_CODES.indexOf(code) >= 0) s += '，路面湿滑注意防滑';
+    else if (code === 45 || code === 48) s += '，雾大能见度低';
+    return '👕 ' + s;
+  }
   function renderWeather(data, stale) {
     var box = $('wx-card'); if (!box) return;
     if (!data || !data.current) {
@@ -877,6 +994,7 @@
       $('wx-desc').textContent = data ? '暂无天气数据' : '未设置城市';
       $('wx-extra').textContent = '';
       $('wx-forecast').innerHTML = '';
+      var et = $('wx-tip'); if (et) et.textContent = data ? '' : '选个城市就能看到穿衣建议';
       return;
     }
     var c = data.current, w = wmo(c.weather_code);
@@ -890,6 +1008,8 @@
       parts.push('今日 ' + Math.round(data.daily.temperature_2m_min[0]) + '~' + Math.round(data.daily.temperature_2m_max[0]) + '°');
     }
     $('wx-extra').textContent = parts.join(' · ');
+    var tip = $('wx-tip');
+    if (tip) tip.textContent = dressingTip(Math.round(c.temperature_2m), c.weather_code);
     var fh = '';
     if (data.daily && data.daily.time) {
       for (var i = 0; i < Math.min(5, data.daily.time.length); i++) {
@@ -1023,6 +1143,43 @@
     cl.toggle('panel-glass', v !== 'clear');
   }
 
+  /* ---------- 翻月（按钮 + 左右滑动） ---------- */
+  function goMonth(delta) {
+    if (delta > 0) { state.m++; if (state.m > 11) { state.m = 0; state.y++; } }
+    else { state.m--; if (state.m < 0) { state.m = 11; state.y--; } }
+    renderCalendar();
+    var g = $('cal-grid');
+    if (g) {
+      g.classList.remove('slide-l', 'slide-r');
+      void g.offsetWidth;                       // 强制重排，动画才会重新播
+      g.classList.add(delta > 0 ? 'slide-l' : 'slide-r');
+    }
+  }
+  /* 左右滑屏切月：只认「横向位移明显大于纵向」的快滑，避免和上下滚动打架 */
+  function bindSwipe(el) {
+    if (!el) return;
+    var x0 = 0, y0 = 0, t0 = 0, moved = false;
+    el.addEventListener('touchstart', function (e) {
+      if (e.touches.length !== 1) { moved = false; return; }
+      var t = e.touches[0]; x0 = t.clientX; y0 = t.clientY; t0 = Date.now(); moved = true;
+    }, { passive: true });
+    el.addEventListener('touchmove', function (e) {
+      if (!moved || e.touches.length !== 1) return;
+      var t = e.touches[0];
+      // 纵向滑动就交给页面滚动，不再当作切月
+      if (Math.abs(t.clientY - y0) > Math.abs(t.clientX - x0)) moved = false;
+    }, { passive: true });
+    el.addEventListener('touchend', function (e) {
+      if (!moved) return;
+      moved = false;
+      var t = e.changedTouches && e.changedTouches[0]; if (!t) return;
+      var dx = t.clientX - x0, dy = t.clientY - y0, dt = Date.now() - t0;
+      if (dt > 800) return;
+      if (Math.abs(dx) < 45 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+      goMonth(dx < 0 ? 1 : -1);
+    }, { passive: true });
+  }
+
   /* ---------- 事件 ---------- */
   function bind() {
     $('cal-grid').addEventListener('click', function (e) {
@@ -1030,14 +1187,21 @@
       if (!c) return;
       openSheet(c.getAttribute('data-date'));
     });
-    $('prev-month').onclick = function () {
-      state.m--; if (state.m < 0) { state.m = 11; state.y--; }
-      renderCalendar();
-    };
-    $('next-month').onclick = function () {
-      state.m++; if (state.m > 11) { state.m = 0; state.y++; }
-      renderCalendar();
-    };
+    $('prev-month').onclick = function () { goMonth(-1); };
+    $('next-month').onclick = function () { goMonth(1); };
+    bindSwipe($('view-calendar'));
+    $('mood-pick').addEventListener('click', function (e) {
+      var b = e.target.closest('.mood-btn'); if (!b) return;
+      if (!state.selected) return;
+      var m = b.getAttribute('data-m'), mo = moodOf(m);
+      if (state.moods[state.selected] === m) { delete state.moods[state.selected]; toast('已取消这天的心情'); }
+      else { state.moods[state.selected] = m; toast(mo.n + '，记下了'); }
+      saveMoods(); renderMoodPick(); renderCalendar(); renderBanner();
+    });
+    $('mood-strip').addEventListener('click', function (e) {
+      var b = e.target.closest('.mood-day[data-date]'); if (!b) return;
+      openSheet(b.getAttribute('data-date'));
+    });
     $('btn-today').onclick = function () {
       var n = new Date(); state.y = n.getFullYear(); state.m = n.getMonth();
       renderCalendar();

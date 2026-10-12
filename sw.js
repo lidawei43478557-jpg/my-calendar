@@ -1,4 +1,4 @@
-var CACHE = 'my-calendar-v14';
+var CACHE = 'my-calendar-v15';
 var ASSETS = [
   './',
   'index.html',

@@ -112,9 +112,9 @@ body.panel-clear .day-num, body.panel-clear .day-sub {
 .env-qr-tip { font-size: 11px; line-height: 1.5; color: #8a5316; }
 
 /* 主布局 */
-#app-view { position: relative; z-index: 1; height: 100%; display: flex; flex-direction: column; }
+#app-view { position: relative; z-index: 1; height: 100%; display: flex; flex-direction: column; padding-top: env(safe-area-inset-top); }
 #banner {
-  margin: calc(env(safe-area-inset-top) + 8px) 14px 0;
+  margin: 8px 14px 0;
   padding: 12px 14px; border-radius: 14px;
   background: linear-gradient(135deg, #e0503f, #c0392b); color: #fff;
   font-size: 14px; text-align: center; flex-shrink: 0;
@@ -129,10 +129,11 @@ body.panel-clear .day-num, body.panel-clear .day-sub {
 .wx-city-row { display: flex; align-items: center; gap: 5px; font-size: 14px; font-weight: 500; min-width: 0; }
 .wx-pin { font-size: 12px; }
 #wx-city { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.wx-tap { font-size: 12px; color: var(--muted); font-weight: 400; }
+.wx-tap { font-size: 12px; color: var(--muted); font-weight: 400; padding: 6px 4px; cursor: pointer; border-radius: 8px; -webkit-tap-highlight-color: transparent; }
 .wx-btn {
   border: 1px solid var(--line); background: rgba(255, 255, 255, 0.6);
-  color: var(--text); font-size: 12px; padding: 5px 12px; border-radius: 999px;
+  color: var(--text); font-size: 12px; padding: 8px 14px; min-height: 32px; border-radius: 999px;
+  cursor: pointer; -webkit-tap-highlight-color: transparent;
 }
 .wx-main { display: flex; align-items: center; justify-content: space-between; margin: 4px 0 2px; }
 .wx-left { display: flex; align-items: baseline; gap: 10px; }
@@ -341,7 +342,7 @@ input[type="range"] { width: 100%; accent-color: var(--red); }
   padding: 13px 0; font-size: 16px; border-radius: 12px; font-weight: 500;
   box-shadow: 0 3px 12px rgba(192, 57, 43, 0.25);
 }
-.primary.small { width: auto; padding: 8px 15px; font-size: 14px; }
+.primary.small { width: auto; padding: 10px 18px; font-size: 14px; min-height: 36px; }
 .primary:disabled { opacity: 0.5; }
 .danger {
   border: 1px solid rgba(217, 59, 48, 0.35); color: var(--red);
@@ -415,10 +416,10 @@ input[type="range"] { width: 100%; accent-color: var(--red); }
    iOS 底部安全区（Home Indicator 那条）原来整块是白的，这里把它压到 45% 并让毛玻璃延续过去 */
 #tabbar {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 20;
-  display: flex; background: rgba(255, 255, 255, 0.34);
-  -webkit-backdrop-filter: blur(24px) saturate(165%); backdrop-filter: blur(24px) saturate(165%);
-  padding: 3px 0 calc(env(safe-area-inset-bottom) * 0.45 + 3px);
-  border-top: 1px solid rgba(255, 255, 255, 0.5);
+  display: flex; background: rgba(255, 255, 255, 0.2);
+  -webkit-backdrop-filter: blur(26px) saturate(170%); backdrop-filter: blur(26px) saturate(170%);
+  padding: 3px 0 calc(env(safe-area-inset-bottom) + 6px);
+  border-top: 1px solid rgba(255, 255, 255, 0.32);
   box-shadow: 0 -2px 16px rgba(0, 0, 0, 0.05);
 }
 .tab {

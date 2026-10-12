@@ -59,6 +59,7 @@
         </div>
         <div class="wx-extra" id="wx-extra"></div>
         <div class="wx-forecast" id="wx-forecast"></div>
+        <div class="wx-tip" id="wx-tip"></div>
       </div>
 
       <div class="cal-card glass">
@@ -72,6 +73,18 @@
           <span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span class="weekend">六</span><span class="weekend">日</span>
         </div>
         <div id="cal-grid"></div>
+        <p class="swipe-tip">← 左右滑动切月份 →</p>
+      </div>
+
+      <!-- 心情月历 -->
+      <div class="mood-card glass">
+        <div class="sec-head">
+          <h2>心情月历</h2>
+          <span class="mood-month" id="mood-month"></span>
+        </div>
+        <div class="mood-stat" id="mood-stat"></div>
+        <div class="mood-strip" id="mood-strip"></div>
+        <p class="hint">每天在日期里点一个表情，这里会汇总成整月心情；点格子可直接改那天</p>
       </div>
     </section>
 
@@ -176,6 +189,15 @@
       <div id="sheet-lunar" class="sheet-lunar"></div>
     </div>
     <button type="button" id="sheet-close" class="nav-btn">✕</button>
+  </div>
+  <div class="mood-row">
+    <span class="mood-label">今天心情</span>
+    <div class="mood-pick" id="mood-pick">
+      <button type="button" data-m="happy" class="mood-btn">😄<i>开心</i></button>
+      <button type="button" data-m="calm" class="mood-btn">😌<i>平静</i></button>
+      <button type="button" data-m="tired" class="mood-btn">😪<i>疲惫</i></button>
+      <button type="button" data-m="bad" class="mood-btn">😞<i>糟糕</i></button>
+    </div>
   </div>
   <div class="login-tabs">
     <button type="button" id="dt-note" class="ltab active">记事</button>

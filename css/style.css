@@ -357,7 +357,8 @@ input[type="range"] { width: 100%; accent-color: var(--red); }
 .hd-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
 .hd-row input { flex: 1; }
 .hd-tilde { color: var(--muted); font-size: 15px; }
-.field #hd-rest-n { margin-bottom: 10px; }
+.field #hd-rest-n { margin-bottom: 8px; }
+.field #hd-rest-n-custom { margin-bottom: 10px; }
 .hd-list { margin-top: 4px; display: flex; flex-direction: column; gap: 8px; }
 .hd-list-item {
   display: flex; align-items: center; justify-content: space-between;

@@ -94,6 +94,7 @@
         <p class="sec-tip">上传照片作为日历背景。照片只保存在这台手机里，不会上传到任何服务器。</p>
         <div class="field">
           <input id="bg-upload" type="file" accept="image/*" multiple>
+          <p class="hint">可一次多选（在相册里连点多张）。<span id="photo-count"></span></p>
         </div>
         <div id="bg-thumbs"></div>
         <div class="field">
@@ -121,9 +122,17 @@
           <p class="hint">调高 = 背景更暗、日历文字更清楚</p>
         </div>
         <div class="field">
+          <label>面板样式</label>
+          <div class="seg" id="seg-panel">
+            <button type="button" data-v="glass" class="active">毛玻璃</button>
+            <button type="button" data-v="clear">半透</button>
+          </div>
+          <p class="hint">半透 = 不模糊，背景照片直接透出来；日期文字会自动加白色描边，怎么透都看得清</p>
+        </div>
+        <div class="field">
           <label>日历面板透明度 <span id="card-val">72%</span></label>
-          <input id="card-slider" type="range" min="20" max="100" value="72">
-          <p class="hint">调低 = 背景照片透出来更多（毛玻璃效果）</p>
+          <input id="card-slider" type="range" min="0" max="100" value="72">
+          <p class="hint">拉到 0% = 面板全透，只剩日期和文字浮在照片上</p>
         </div>
       </div>
       <div class="st-card glass">

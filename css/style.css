@@ -196,9 +196,17 @@ body.panel-clear .day-num, body.panel-clear .day-sub {
   width: 4px; height: 4px; border-radius: 50%; background: var(--red);
 }
 .day-cell .bd-dot {
-  position: absolute; top: 3px; right: 5px;
+  position: absolute; top: 3px; left: 5px;
   font-size: 9px; color: var(--orange); line-height: 1;
 }
+/* 法定节假日「休」/ 调休补班「班」角标（右上角，参考中华万年历） */
+.day-cell .day-flag {
+  position: absolute; top: 2px; right: 3px; z-index: 6;
+  font-size: 10px; font-weight: 700; line-height: 1; padding: 2px 4px; border-radius: 6px;
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+.day-cell .day-flag.f-rest { color: #e23b3b; background: rgba(255, 255, 255, 0.78); }
+.day-cell .day-flag.f-work { color: #fff; background: rgba(43, 125, 233, 0.92); }
 /* 心情：显示在日期格子左下角，和右上角的生日角标错开 */
 .day-cell .day-mood {
   position: absolute; bottom: 2px; left: 4px;

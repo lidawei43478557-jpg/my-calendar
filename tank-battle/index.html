@@ -1337,25 +1337,28 @@ function drawBullet(ctx, x, y, dir, power) {
    基地（老鹰）：16x16 像素点阵
    '.' 透明  'A' 主体  'B' 暗部  'C' 高光  'D' 深色勾边
    -------------------------------------------------------------------------- */
-/* 展翅的老鹰（经典 FC 风格）：头部居中、双翅向两侧大幅张开、底部是底座。
-   轮廓：窄头 → 中段双翅最宽 → 收成尾羽，整体像一只展翅的鹰。 */
+/* 展翅的老鹰（经典 FC 风格）：顶部小头 + 中段双翅大幅向两侧张开至满宽 + 底部收窄为身/尾。
+   轮廓：窄头 → 双翅在上方大幅张开（最宽处占满整宽）→ 向下收成身子和尾羽，
+   一眼就能看出是"展翅的鹰"，而不是菱形方块。 */
+/* 老鹰基地：展翅造型——顶部头部（白），中部翅膀向两侧铺满，
+   下收为躯干，底部两条腿分开。明确是"鸟"，不会读成菱形。 */
 var BASE_ART = [
   '................',
-  '.......AA.......',
-  '......ABBA......',
-  '.....AABBAA.....',
-  '....AABBBBAA....',
-  '...AABBBBBBAA...',
-  '..AABBBBBBBBAA..',
-  '.AABBBBBBBBBBAA.',
-  '.AABBBBBBBBBBAA.',
-  '..AABBBBBBBBAA..',
-  '...AABBBBBBAA...',
-  '....AABBBBAA....',
-  '.....AABBAA.....',
-  '......AAAA......',
-  '...BBBBBBBBBB...',
-  '..BBBBBBBBBBBB..'
+  '.......CC.......',
+  '......DCCD......',
+  '....DDDCCDDD....',
+  '.DDAAAAAAAAAADD.',
+  'DDAAAAAAAAAAAADD',
+  'DDAAAABBBBAAAADD',
+  '.DDAAABBBBAAADD.',
+  '..DDAABBBBAADD..',
+  '....DDBBBBDD....',
+  '.....DB..BD.....',
+  '.....DB..BD.....',
+  '.....DD..DD.....',
+  '................',
+  '................',
+  '................'
 ];
 
 var BASE_DEAD_ART = [
@@ -1739,8 +1742,8 @@ function blocksTank(tx, ty) {
   return false;
 }
 
-/* 坦克能否位于 (nx, ny)：检查地形 + 其他坦克 + 边界 */
-function tankCanPlace(t, nx, ny) {
+/* 坦克能否位于 (nx, ny)：检查地形 + 其他坦克 + 边界。ignore 用于分离时临时排除另一只坦克 */
+function tankCanPlace(t, nx, ny, ignore) {
   if (nx < 0 || ny < 0 || nx + t.w > CONFIG.FIELD || ny + t.h > CONFIG.FIELD) return false;
   var x0 = Math.floor(nx / CONFIG.TILE), x1 = Math.floor((nx + t.w - 1) / CONFIG.TILE);
   var y0 = Math.floor(ny / CONFIG.TILE), y1 = Math.floor((ny + t.h - 1) / CONFIG.TILE);
@@ -1749,14 +1752,47 @@ function tankCanPlace(t, nx, ny) {
       if (blocksTank(tx, ty)) return false;
     }
   }
-  /* 与其他坦克不重叠 */
+  /* 与其他坦克不重叠（ignore 用于分离时临时排除另一只） */
   var all = G.enemies.concat(G.player ? [G.player] : []);
   for (var i = 0; i < all.length; i++) {
     var o = all[i];
-    if (o === t || !o.alive || o.spawn < 1) continue;
+    if (o === t || o === ignore || !o.alive || o.spawn < 1) continue;
     if (hitRect(nx, ny, t.w, t.h, o.x, o.y, o.w, o.h)) return false;
   }
   return true;
+}
+
+/* 坦克互相重叠时（如我方坦克出生时敌方刚好压上来），沿最小穿透轴把它们分开，
+   避免两辆车卡在一起谁也动不了。分离只在双方都已完成出场动画（spawn>=1）后进行。 */
+function tryMoveTank(t, nx, ny, other) {
+  if (tankCanPlace(t, nx, ny, other)) { t.x = nx; t.y = ny; }
+}
+function separateTanks() {
+  var list = G.enemies.slice();
+  if (G.player && G.player.alive) list.push(G.player);
+  for (var a = 0; a < list.length; a++) {
+    var t1 = list[a];
+    if (!t1.alive || t1.spawn < 1) continue;
+    for (var b = a + 1; b < list.length; b++) {
+      var t2 = list[b];
+      if (!t2.alive || t2.spawn < 1) continue;
+      if (!hitRect(t1.x, t1.y, t1.w, t1.h, t2.x, t2.y, t2.w, t2.h)) continue;
+      var dx = (t1.x + t1.w / 2) - (t2.x + t2.w / 2);
+      var dy = (t1.y + t1.h / 2) - (t2.y + t2.h / 2);
+      var ox = (t1.w + t2.w) / 2 - Math.abs(dx);   // x 方向重叠量
+      var oy = (t1.h + t2.h) / 2 - Math.abs(dy);   // y 方向重叠量
+      if (ox <= 0 || oy <= 0) continue;
+      if (ox <= oy) {
+        var sx = (dx > 0 ? 1 : -1) * (ox / 2 + 0.5);
+        tryMoveTank(t1, t1.x + sx, t1.y, t2);
+        tryMoveTank(t2, t2.x - sx, t2.y, t1);
+      } else {
+        var sy = (dy > 0 ? 1 : -1) * (oy / 2 + 0.5);
+        tryMoveTank(t1, t1.x, t1.y + sy, t2);
+        tryMoveTank(t2, t2.x, t2.y - sy, t1);
+      }
+    }
+  }
 }
 
 /* 子弹所在 tile 是否阻挡子弹（水不挡子弹） */
@@ -1766,27 +1802,52 @@ function bulletBlockedAt(tx, ty) {
 }
 
 /* --------------------------------------------------------------------------
-   地形破坏：普通子弹打掉 1 个 tile，强化子弹打掉横向 2 个
+   地形破坏：
+   - 玩家子弹：以命中点为中心 3×3（9 格）爆破，一次清掉成片砖墙；
+     强化弹（power>=2）连钢墙也按 3×3 清。
+   - 敌方子弹：保持原版手感，只打掉命中的 1 格（钢墙挡下普通弹）。
    -------------------------------------------------------------------------- */
 function damageTile(bullet, tx, ty) {
   var v = tileAt(G.tiles, tx, ty);
+
+  /* 砖墙 */
   if (v === T_BRICK) {
-    setTiles(G.tiles, tx, ty, 1, 1, T_EMPTY);
-    markTerrainDirty();                 // ★ 关键：地形变了，必须让离屏缓存重绘
-    if (bullet.power >= 2) {
-      /* 强化弹：沿垂直方向多打掉左右（或上下）各一格 */
-      var ox = (bullet.dir === DIR.UP || bullet.dir === DIR.DOWN) ? 1 : 0;
-      var oy = (bullet.dir === DIR.UP || bullet.dir === DIR.DOWN) ? 0 : 1;
-      if (tileAt(G.tiles, tx + ox, ty + oy) === T_BRICK) { setTiles(G.tiles, tx + ox, ty + oy, 1, 1, T_EMPTY); markTerrainDirty(); }
-      if (tileAt(G.tiles, tx - ox, ty - oy) === T_BRICK) { setTiles(G.tiles, tx - ox, ty - oy, 1, 1, T_EMPTY); markTerrainDirty(); }
+    if (bullet.fromPlayer) {
+      /* 玩家子弹：3×3 爆破，清掉 9 格砖块 */
+      for (var by = -1; by <= 1; by++) {
+        for (var bx = -1; bx <= 1; bx++) {
+          if (tileAt(G.tiles, tx + bx, ty + by) === T_BRICK) {
+            setTiles(G.tiles, tx + bx, ty + by, 1, 1, T_EMPTY);
+            markTerrainDirty();         // ★ 地形变了，必须让离屏缓存重绘
+          }
+        }
+      }
+    } else {
+      /* 敌方子弹：原版，只打掉 1 格 */
+      setTiles(G.tiles, tx, ty, 1, 1, T_EMPTY);
+      markTerrainDirty();
     }
     Sound.play('hitBrick');
     return true;
   }
+
+  /* 钢墙：只有强化弹能打穿 */
   if (v === T_STEEL) {
     if (bullet.power >= 2) {
-      setTiles(G.tiles, tx, ty, 1, 1, T_EMPTY);
-      markTerrainDirty();               // ★ 强化弹才能打穿钢墙，同样要重绘
+      if (bullet.fromPlayer) {
+        /* 强化弹 + 玩家：3×3 清掉成片钢墙 */
+        for (var sy = -1; sy <= 1; sy++) {
+          for (var sx = -1; sx <= 1; sx++) {
+            if (tileAt(G.tiles, tx + sx, ty + sy) === T_STEEL) {
+              setTiles(G.tiles, tx + sx, ty + sy, 1, 1, T_EMPTY);
+              markTerrainDirty();
+            }
+          }
+        }
+      } else {
+        setTiles(G.tiles, tx, ty, 1, 1, T_EMPTY);
+        markTerrainDirty();
+      }
       Sound.play('hitBrick');
       return true;
     }
@@ -2317,6 +2378,7 @@ function update(dt) {
   if (G.state !== 'playing') return;      // 玩家可能在 updatePlayer 里触发 gameOver
   trySpawnEnemy(dt);
   updateEnemies(dt);
+  separateTanks();                        // ★ 把我方坦克出生时与敌方重叠的情况分开，避免两辆车卡死
   updateBullets(dt);
   updateItems(dt);
   updateBooms(dt);
@@ -2914,6 +2976,7 @@ function boot() {
     createTank: createTank, spawnBullet: spawnBullet, buildMap: buildMap,
     explode: explode, destroyBase: destroyBase, killPlayer: killPlayer,
     gameOver: gameOver, saveBest: saveBest, togglePause: togglePause,
+    damageTile: damageTile, separateTanks: separateTanks, hitRect: hitRect,
     /* 快进 n 帧（用于自动化验证，无需真的等 10 秒） */
     tick: function (n) { for (var i = 0; i < n; i++) update(CONFIG.STEP); },
     render: function () { render(ctx); }

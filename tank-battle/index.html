@@ -98,22 +98,33 @@ body { position: fixed; inset: 0; }
   flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between;
   padding: 10px 22px calc(14px + env(safe-area-inset-bottom)) 22px; gap: 12px;
 }
-/* 十字键：3x3 布局，中心为死区，四周为方向 */
+/* ---------- 圆形虚拟摇杆：底座 + 可拖动拇指 ---------- */
 #dpad {
   position: relative; width: 168px; height: 168px; flex: 0 0 auto;
-  touch-action: none;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 42%, #2a2a31, #16161b 72%);
+  border: 2px solid #34343c; box-shadow: inset 0 0 18px rgba(0,0,0,.55);
+  touch-action: none; overflow: visible;
 }
-#dpad .k {
-  position: absolute; width: 56px; height: 56px; background: #1e1e24;
-  border: 1px solid #33333c; display: flex; align-items: center; justify-content: center;
-  color: #7c7c88; font-size: 20px;
+/* 底座上的十字参考线（仅装饰，提示四方向） */
+#dpad .cross { position: absolute; inset: 0; pointer-events: none; }
+#dpad .cross::before, #dpad .cross::after {
+  content: ''; position: absolute; background: rgba(255,255,255,.05);
 }
-#dpad .k.up    { left: 56px; top: 0;    border-radius: 8px 8px 0 0; }
-#dpad .k.down  { left: 56px; top: 112px; border-radius: 0 0 8px 8px; }
-#dpad .k.left  { left: 0;    top: 56px; border-radius: 8px 0 0 8px; }
-#dpad .k.right { left: 112px; top: 56px; border-radius: 0 8px 8px 0; }
-#dpad .k.center{ left: 56px; top: 56px; border-radius: 4px; background: #17171c; color: #3a3a44; font-size: 11px; }
-#dpad .k.on { background: #3a3a46; color: #ffd24a; border-color: #55555f; }
+#dpad .cross::before { left: 50%; top: 10%; width: 1px; height: 80%; transform: translateX(-.5px); }
+#dpad .cross::after  { top: 50%; left: 10%; height: 1px; width: 80%; transform: translateY(-.5px); }
+/* 可拖动的拇指 */
+#stick {
+  position: absolute; left: 50%; top: 50%; width: 74px; height: 74px;
+  margin-left: -37px; margin-top: -37px; border-radius: 50%;
+  background: radial-gradient(circle at 50% 36%, #565662, #2c2c34 78%);
+  border: 2px solid #5a5a66; box-shadow: 0 2px 6px rgba(0,0,0,.5);
+  pointer-events: none; will-change: transform;
+}
+#stick::after {
+  content: ''; position: absolute; left: 50%; top: 50%; width: 18px; height: 18px;
+  margin: -9px 0 0 -9px; border-radius: 50%; background: rgba(255,210,74,.35);
+}
 /* 开火键：大圆按钮，支持长按连发 */
 #fire {
   width: 104px; height: 104px; border-radius: 50%; flex: 0 0 auto;
@@ -144,12 +155,7 @@ body { position: fixed; inset: 0; }
     position: absolute; left: calc(10px + env(safe-area-inset-left)); bottom: calc(10px + env(safe-area-inset-bottom));
     pointer-events: auto; width: 150px; height: 150px;
   }
-  #dpad .k { width: 50px; height: 50px; font-size: 18px; }
-  #dpad .k.up    { left: 50px; top: 0; }
-  #dpad .k.down  { left: 50px; top: 100px; }
-  #dpad .k.left  { left: 0;  top: 50px; }
-  #dpad .k.right { left: 100px; top: 50px; }
-  #dpad .k.center{ left: 50px; top: 50px; }
+  #stick { width: 66px; height: 66px; margin-left: -33px; margin-top: -33px; }
   #pad-side {
     position: absolute; right: calc(12px + env(safe-area-inset-right)); bottom: calc(12px + env(safe-area-inset-bottom));
     pointer-events: auto;
@@ -157,15 +163,10 @@ body { position: fixed; inset: 0; }
   #fire { width: 96px; height: 96px; }
 }
 
-/* 极矮屏（横屏小机型）压缩十字键 */
+/* 极矮屏（横屏小机型）压缩摇杆 */
 @media (orientation: landscape) and (max-height: 430px) {
   #dpad { width: 126px; height: 126px; }
-  #dpad .k { width: 42px; height: 42px; }
-  #dpad .k.up    { left: 42px; top: 0; }
-  #dpad .k.down  { left: 42px; top: 84px; }
-  #dpad .k.left  { left: 0;  top: 42px; }
-  #dpad .k.right { left: 84px; top: 42px; }
-  #dpad .k.center{ left: 42px; top: 42px; }
+  #stick { width: 56px; height: 56px; margin-left: -28px; margin-top: -28px; }
   #fire { width: 84px; height: 84px; }
 }
 </style>
@@ -176,7 +177,7 @@ body { position: fixed; inset: 0; }
   <!-- 顶部信息栏 -->
   <div id="hud">
     <div class="item"><span class="label">关卡</span><span class="val stage" id="hud-stage">1</span></div>
-    <div class="item"><span class="label">生命</span><span class="val life" id="hud-life">3</span></div>
+    <div class="item"><span class="label">生命</span><span class="val life" id="hud-life">5</span></div>
     <div class="item"><span class="label">敌人</span><span class="val enemy" id="hud-enemy">20</span></div>
     <div class="spacer"></div>
     <div class="item"><span class="label">得分</span><span class="val" id="hud-score">0</span></div>
@@ -201,11 +202,8 @@ body { position: fixed; inset: 0; }
   <!-- 触控区 -->
   <div id="pad">
     <div id="dpad">
-      <div class="k up"    data-dir="up">▲</div>
-      <div class="k left"  data-dir="left">◀</div>
-      <div class="k center">+</div>
-      <div class="k right" data-dir="right">▶</div>
-      <div class="k down"  data-dir="down">▼</div>
+      <div class="cross"></div>
+      <div id="stick"></div>
     </div>
     <div id="pad-side">
       <button id="fire" type="button">开火</button>
@@ -261,7 +259,7 @@ var CONFIG = {
   MAX_ON_SCREEN: 4,         // 同屏最多敌人
   SPAWN_INTERVAL: 2.6,      // 出场间隔（秒），随关卡递减
   SPAWN_BLINK: 1.2,         // 出场闪烁动画时长（秒）
-  PLAYER_LIVES: 3,          // 初始生命
+  PLAYER_LIVES: 5,          // 初始生命
   RESPAWN_INVINCIBLE: 3.0,  // 重生无敌时长（秒）
 
   /* ---- 开火 ---- */
@@ -279,7 +277,7 @@ var CONFIG = {
     exist: 22     // 道具在地上存在的时间（最后 5 秒闪烁）
   },
   ITEM_BLINK_AT: 17,        // 剩余多少秒开始闪烁提示
-  ITEM_DROP_FROM: 4,        // 每关第 N 辆被击毁的坦克开始概率掉落道具
+  ITEM_DROP_CHANCE: 0.22,   // 每辆敌坦克被击毁后掉落道具的概率（原版靠"红坦克"，这里改为概率掉落）
 
   /* ---- 难度递进（每过一关的系数）---- */
   STAGE_SPEED_STEP: 1.035,  // 敌人速度每关乘数
@@ -313,7 +311,7 @@ var ITEM_NAMES = ['星星', '手雷', '头盔', '铲子', '坦克', '时钟'];
 /* ---- FC 原版配色 ---- */
 var COLORS = {
   bg: '#000000',
-  brick: '#a8462b', brickDark: '#6d2a17', brickLite: '#c96a44',
+  brick: '#c8632f', brickDark: '#54260f', brickLite: '#e89060',
   steel: '#a9b0b5', steelDark: '#6b7276', steelLite: '#e2e9ed',
   water: '#2a4bd8', waterLite: '#5c7bff',
   grass: '#2f8f3f', grassDark: '#1e6a2b',
@@ -1180,16 +1178,17 @@ function pixelCircle(ctx, cx, cy, r, color) {
    地形：每种地形一个 8x8 tile
    -------------------------------------------------------------------------- */
 
-/* 砖墙：2x2 个 4x4 小砖 + 砖缝 */
+/* 砖墙：经典 FC 砖纹——深色砖缝打底，4 块 3x3 红砖错位排布，左上带高光。
+   2x2 的小砖让"子弹一点点啃掉墙"的手感更明显。 */
 function drawBrick(ctx, x, y) {
-  px(ctx, x, y, 8, 8, COLORS.brickDark);
-  px(ctx, x, y, 3, 3, COLORS.brick);
-  px(ctx, x + 4, y, 3, 3, COLORS.brick);
-  px(ctx, x, y + 4, 3, 3, COLORS.brick);
-  px(ctx, x + 4, y + 4, 3, 3, COLORS.brick);
-  px(ctx, x, y, 2, 1, COLORS.brickLite);
-  px(ctx, x + 4, y, 2, 1, COLORS.brickLite);
-  px(ctx, x, y + 4, 2, 1, COLORS.brickLite);
+  px(ctx, x, y, 8, 8, COLORS.brickDark);          // 砖缝（深色底）
+  px(ctx, x,     y,     3, 3, COLORS.brick);       // 左上砖
+  px(ctx, x + 4, y,     3, 3, COLORS.brick);       // 右上砖
+  px(ctx, x,     y + 4, 3, 3, COLORS.brick);       // 左下砖
+  px(ctx, x + 4, y + 4, 3, 3, COLORS.brick);       // 右下砖
+  px(ctx, x,     y,     2, 1, COLORS.brickLite);   // 高光
+  px(ctx, x + 4, y,     2, 1, COLORS.brickLite);
+  px(ctx, x,     y + 4, 2, 1, COLORS.brickLite);
   px(ctx, x + 4, y + 4, 2, 1, COLORS.brickLite);
 }
 
@@ -1310,12 +1309,14 @@ function drawTank(ctx, ox, oy, opt) {
   }
 }
 
-/* 子弹：3x4 的小方块，带亮头 */
+/* 子弹：3x4 的小方块，带亮头
+   注意：传入的 (x,y) 已经是子弹自身的真实左上角坐标（spawnBullet 已按炮管方向定位），
+   这里直接按 (x,y) 画，绝不能再加 (TANK-w)/2 之类的偏移，否则视觉会与碰撞错位、
+   看起来像从坦克侧面（右边）射出。 */
 function drawBullet(ctx, x, y, dir, power) {
   var w = dir === DIR.UP || dir === DIR.DOWN ? CONFIG.BULLET_W : CONFIG.BULLET_H;
   var h = dir === DIR.UP || dir === DIR.DOWN ? CONFIG.BULLET_H : CONFIG.BULLET_W;
-  var bx = x + (CONFIG.TANK - w) / 2;
-  var by = y + (CONFIG.TANK - h) / 2;
+  var bx = x, by = y;
   px(ctx, bx, by, w, h, COLORS.bullet);
   if (dir === DIR.UP) px(ctx, bx, by, w, 1, COLORS.bulletLite);
   else if (dir === DIR.DOWN) px(ctx, bx, by + h - 1, w, 1, COLORS.bulletLite);
@@ -1331,36 +1332,36 @@ function drawBullet(ctx, x, y, dir, power) {
    基地（老鹰）：16x16 像素点阵
    '.' 透明  'A' 主体  'B' 暗部  'C' 高光  'D' 深色勾边
    -------------------------------------------------------------------------- */
-/* 展翅的老鹰：上窄下宽，两侧翅尖下垂，底部是底座 */
+/* 展翅的老鹰（经典 FC 风格）：头部居中、双翅向两侧张开、底部是底座 */
 var BASE_ART = [
   '................',
-  '......AAAA......',
+  '.......AA.......',
+  '......AABA......',
+  '......ABBA......',
   '.....AABBAA.....',
-  '....AABBAAAA....',
-  '...AABBAAAAAA...',
-  '..AABBAAAAAAAA..',
-  '.AABBAAAAAAAAAA.',
-  '.AABBAAAAAAAAAA.',
-  '.BBAAAAAAAAAABB.',
-  '..BBAAAAAAAABB..',
-  '...BBBAAAABBB...',
-  '....BBAAAABB....',
-  '.....BBBBBB.....',
+  '....AABBBBAA....',
+  '...AABBBBBBAA...',
+  '..AABBBBBBBBAA..',
+  '.AABBBBBBBBBBAA.',
+  '.AAABBBBBBBBAAA.',
+  '..AABBBBBBBBAA..',
+  '...AABBBBBBAA...',
+  '....AABBBBAA....',
+  '.....ABBBBA.....',
   '...BBBBBBBBBB...',
-  '..BBBBBBBBBBBB..',
-  '................'
+  '..BBBBBBBBBBBB..'
 ];
 
 var BASE_DEAD_ART = [
   '................',
   '................',
-  '.....X...X......',
-  '....XXX.XXX.....',
-  '...XX.XXX.XX....',
-  '..X.XXXXX..X....',
-  '.X..XXXXX...X...',
-  '.X..XXXXX...X...',
-  '..X.XXXXX..X....',
+  '.....X..X.......',
+  '....XXX.XX......',
+  '...XXXXX.X......',
+  '..X.XXXXXX......',
+  '.X..XXXX...X....',
+  '.X..XXXX...X....',
+  '..X.XXXXXX......',
   '...XX.X.XX......',
   '....X...X.......',
   '...X..X..X......',
@@ -1631,11 +1632,7 @@ function buildEnemyQueue(stage) {
     else if (r < pArmor + pFast) t = ETYPE.FAST;
     q.push(t);
   }
-  /* 携带道具的敌人：每关固定第 4 / 11 / 18 辆，再随机加一辆 */
-  var carriers = {};
-  carriers[3] = 1; carriers[10] = 1; carriers[17] = 1;
-  carriers[4 + randInt(CONFIG.ENEMY_PER_STAGE - 5)] = 1;
-  for (var k in carriers) { if (q[k] !== undefined) q[k] = q[k] | 8; }   // 用高位标记携带道具
+  /* 道具掉落改为"每辆车概率掉落"，见 hitEnemy，这里不再用 carry 标记 */
   return q;
 }
 
@@ -1749,12 +1746,13 @@ function damageTile(bullet, tx, ty) {
   var v = tileAt(G.tiles, tx, ty);
   if (v === T_BRICK) {
     setTiles(G.tiles, tx, ty, 1, 1, T_EMPTY);
+    markTerrainDirty();                 // ★ 关键：地形变了，必须让离屏缓存重绘
     if (bullet.power >= 2) {
       /* 强化弹：沿垂直方向多打掉左右（或上下）各一格 */
       var ox = (bullet.dir === DIR.UP || bullet.dir === DIR.DOWN) ? 1 : 0;
       var oy = (bullet.dir === DIR.UP || bullet.dir === DIR.DOWN) ? 0 : 1;
-      if (tileAt(G.tiles, tx + ox, ty + oy) === T_BRICK) setTiles(G.tiles, tx + ox, ty + oy, 1, 1, T_EMPTY);
-      if (tileAt(G.tiles, tx - ox, ty - oy) === T_BRICK) setTiles(G.tiles, tx - ox, ty - oy, 1, 1, T_EMPTY);
+      if (tileAt(G.tiles, tx + ox, ty + oy) === T_BRICK) { setTiles(G.tiles, tx + ox, ty + oy, 1, 1, T_EMPTY); markTerrainDirty(); }
+      if (tileAt(G.tiles, tx - ox, ty - oy) === T_BRICK) { setTiles(G.tiles, tx - ox, ty - oy, 1, 1, T_EMPTY); markTerrainDirty(); }
     }
     Sound.play('hitBrick');
     return true;
@@ -1762,6 +1760,7 @@ function damageTile(bullet, tx, ty) {
   if (v === T_STEEL) {
     if (bullet.power >= 2) {
       setTiles(G.tiles, tx, ty, 1, 1, T_EMPTY);
+      markTerrainDirty();               // ★ 强化弹才能打穿钢墙，同样要重绘
       Sound.play('hitBrick');
       return true;
     }
@@ -1795,10 +1794,9 @@ function trySpawnEnemy(dt) {
   }
 
   var raw = G.enemyQueue.shift();
-  var carry = (raw & 8) !== 0;
   var etype = raw & 3;
   var e = createTank(false, etype, slot[0], slot[1]);
-  e.carryItem = carry;
+  e.carryItem = false;
   /* 速度 / 开火频率随关卡递增 */
   e.baseSpeed *= Math.pow(CONFIG.STAGE_SPEED_STEP, G.stage - 1);
   e.spawn = 0;
@@ -2047,7 +2045,8 @@ function hitEnemy(e) {
          : (e.etype === ETYPE.FAST ? CONFIG.SCORE.fast : CONFIG.SCORE.normal);
   G.score += sc;
   addPop(e.x + 8, e.y + 8, String(sc));
-  if (e.carryItem) dropItem();
+  /* 概率掉落道具（与"红坦克"机制不同，这里每辆车都有机会掉落） */
+  if (Math.random() < CONFIG.ITEM_DROP_CHANCE) dropItem();
 }
 
 /* 玩家阵亡 */
@@ -2090,13 +2089,13 @@ function updateItems(dt) {
   }
 }
 
-/* 在随机空地掉落一个道具 */
+/* 在随机空地掉落一个道具（找不到 2x2 空地时退回任意单格，保证必掉落） */
 function dropItem() {
-  for (var tries = 0; tries < 90; tries++) {
+  /* 优先：找一块 2x2 tile 的空地（避开基地与玩家出生区域） */
+  for (var tries = 0; tries < 120; tries++) {
     var bx = randInt(12), by = randInt(11);      // 块坐标（避开最底行）
     var px = bx * 16, py = by * 16;
-    /* 与基地、玩家出生点保持距离，且整块为空地 */
-    if (by >= 11 && bx >= 4 && bx <= 8) continue;
+    if (by >= 11 && bx >= 4 && bx <= 8) continue;     // 基地保护区
     var ok = true;
     for (var dy = 0; dy < 2 && ok; dy++) {
       for (var dx = 0; dx < 2; dx++) {
@@ -2105,10 +2104,32 @@ function dropItem() {
       }
     }
     if (!ok) continue;
+    if (overlapsItem(px, py)) continue;
     G.items.push({ x: px, y: py, type: randInt(6), life: CONFIG.ITEM_DURATION.exist });
     Sound.play('itemAppear');
     return;
   }
+  /* 兜底：任意单个空 tile，确保道具一定出现 */
+  for (var t2 = 0; t2 < 200; t2++) {
+    var tx = randInt(CONFIG.GRID), ty = randInt(CONFIG.GRID - 2);
+    var vv = tileAt(G.tiles, tx, ty);
+    if (vv !== T_EMPTY && vv !== T_GRASS) continue;
+    if (tx >= G.baseX && tx <= G.baseX + 1 && ty >= G.baseY && ty <= G.baseY + 1) continue;
+    var pxx = tx * 8, pyy = ty * 8;
+    if (overlapsItem(pxx, pyy)) continue;
+    G.items.push({ x: pxx, y: pyy, type: randInt(6), life: CONFIG.ITEM_DURATION.exist });
+    Sound.play('itemAppear');
+    return;
+  }
+}
+
+/* 新道具是否与已有道具重叠 */
+function overlapsItem(x, y) {
+  for (var i = 0; i < G.items.length; i++) {
+    var it = G.items[i];
+    if (Math.abs(it.x - x) < 16 && Math.abs(it.y - y) < 16) return true;
+  }
+  return false;
 }
 
 /* 道具生效 */
@@ -2170,6 +2191,7 @@ function activateShovel() {
         }
       }
     }
+    markTerrainDirty();                 // ★ 砖墙→钢墙，地形变了，重绘
   }
   G.shovelTimer = CONFIG.ITEM_DURATION.shovel;
 }
@@ -2179,6 +2201,7 @@ function restoreShovel() {
   for (var i = 0; i < G.shovelBackup.length; i++) {
     G.tiles[G.shovelBackup[i][0]] = G.shovelBackup[i][1];
   }
+  markTerrainDirty();                   // ★ 钢墙→砖墙恢复，地形变了，重绘
   G.shovelBackup = null;
   G.shovelTimer = 0;
 }
@@ -2465,81 +2488,83 @@ var Input = {
     }
   },
 
-  /* ---- 十字键：整块区域感知触点相对中心的偏移，支持滑动换向 ---- */
+  /* ---- 圆形虚拟摇杆：浮动起点（手指按在底座任意处即以此为原点），
+         死区内不动，超出死区吸附到最近的四个方向；拇指视觉跟随；
+         在 window 上跟踪 touchmove/touchend，手指滑出底座仍能持续操控。 ---- */
   bindDpad: function () {
-    var self = this, el = this.dpadEl, activeId = null, mouseActive = false;
+    var self = this, el = this.dpadEl, stick = document.getElementById('stick');
+    var activeId = null, mouseActive = false;
+    var ox = 0, oy = 0;                 // 当前拖动的起点（触点初始位置）
+    var MAX_R = 52;                     // 拇指最大位移半径
+    var DEAD = 16;                      // 死区半径：小于此不移动
 
-    function dirFromPoint(cx, cy) {
-      var r = el.getBoundingClientRect();
-      var dx = cx - (r.left + r.width / 2);
-      var dy = cy - (r.top + r.height / 2);
-      if (Math.abs(dx) < 10 && Math.abs(dy) < 10) return inputState.dir;   // 中心死区：保持原方向
+    function setStick(dx, dy) {
+      if (stick) stick.style.transform = 'translate(' + dx + 'px,' + dy + 'px)';
+    }
+    function dirFromDelta(dx, dy) {
+      if (Math.abs(dx) < DEAD && Math.abs(dy) < DEAD) return -1;
       if (Math.abs(dx) > Math.abs(dy)) return dx > 0 ? DIR.RIGHT : DIR.LEFT;
       return dy > 0 ? DIR.DOWN : DIR.UP;
     }
+    function moveTo(cx, cy) {
+      var dx = cx - ox, dy = cy - oy;
+      var mag = Math.sqrt(dx * dx + dy * dy);
+      if (mag > MAX_R) { dx = dx / mag * MAX_R; dy = dy / mag * MAX_R; }
+      setStick(dx, dy);
+      inputState.dir = dirFromDelta(dx, dy);
+    }
+    function endDrag() {
+      activeId = null;
+      inputState.dir = -1;
+      setStick(0, 0);
+    }
 
+    /* touchstart 必须落在底座上；只认第一根按下的手指 */
     function onStart(e) {
       e.preventDefault();
-      Sound.unlock();                       // iOS 必须在用户手势里解锁音频
-      var ts = e.changedTouches;
-      for (var i = 0; i < ts.length; i++) {
-        activeId = ts[i].identifier;
-        inputState.dir = dirFromPoint(ts[i].clientX, ts[i].clientY);
-      }
-      self.highlight(inputState.dir);
+      Sound.unlock();
+      var t = e.changedTouches[0];
+      activeId = t.identifier;
+      ox = t.clientX; oy = t.clientY;
+      setStick(0, 0);
     }
+    /* move / end 挂在 window，保证滑出底座仍跟踪 */
     function onMove(e) {
+      if (activeId === null) return;
       e.preventDefault();
       var ts = e.changedTouches;
       for (var i = 0; i < ts.length; i++) {
-        if (ts[i].identifier === activeId) {
-          inputState.dir = dirFromPoint(ts[i].clientX, ts[i].clientY);
-          self.highlight(inputState.dir);
-        }
+        if (ts[i].identifier === activeId) { moveTo(ts[i].clientX, ts[i].clientY); break; }
       }
     }
     function onEnd(e) {
-      e.preventDefault();
-      var ts = e.changedTouches, still = false;
+      if (activeId === null) return;
+      var ts = e.changedTouches;
       for (var i = 0; i < ts.length; i++) {
-        if (ts[i].identifier === activeId) activeId = null;
+        if (ts[i].identifier === activeId) { endDrag(); break; }
       }
-      /* 若还有别的手指按在方向键区域，交给他 */
-      if (activeId === null && e.touches && e.touches.length) {
-        for (var j = 0; j < e.touches.length; j++) {
-          var r = el.getBoundingClientRect(), t = e.touches[j];
-          if (t.clientX >= r.left && t.clientX <= r.right && t.clientY >= r.top && t.clientY <= r.bottom) {
-            activeId = t.identifier;
-            inputState.dir = dirFromPoint(t.clientX, t.clientY);
-            still = true;
-            break;
-          }
-        }
-      }
-      if (!still) { inputState.dir = -1; activeId = null; }
-      self.highlight(inputState.dir);
     }
 
     el.addEventListener('touchstart', onStart, { passive: false });
-    el.addEventListener('touchmove', onMove, { passive: false });
-    el.addEventListener('touchend', onEnd, { passive: false });
-    el.addEventListener('touchcancel', onEnd, { passive: false });
+    window.addEventListener('touchmove', onMove, { passive: false });
+    window.addEventListener('touchend', onEnd, { passive: false });
+    window.addEventListener('touchcancel', onEnd, { passive: false });
 
-    /* 电脑调试：鼠标按住方向键也能玩 */
+    /* 电脑调试：鼠标拖动摇杆也能玩 */
     el.addEventListener('mousedown', function (e) {
       e.preventDefault(); Sound.unlock();
       mouseActive = true;
-      inputState.dir = dirFromPoint(e.clientX, e.clientY);
-      self.highlight(inputState.dir);
+      activeId = 'mouse';
+      ox = e.clientX; oy = e.clientY;
+      setStick(0, 0);
     });
     window.addEventListener('mousemove', function (e) {
       if (!mouseActive) return;
-      inputState.dir = dirFromPoint(e.clientX, e.clientY);
-      self.highlight(inputState.dir);
+      moveTo(e.clientX, e.clientY);
     });
     window.addEventListener('mouseup', function () {
       if (!mouseActive) return;
-      mouseActive = false; inputState.dir = -1; self.highlight(-1);
+      mouseActive = false; endDrag();
     });
   },
 
@@ -2684,7 +2709,7 @@ function showOverlay(title, sub, stats, tips, buttons) {
 }
 function hideOverlay() { elOverlay.classList.remove('show'); }
 
-var MENU_TIPS = '左下 <b>十字键</b> 移动，右下 <b>开火键</b> 长按连发<br>' +
+var MENU_TIPS = '左下 <b>圆形摇杆</b> 拖动控制方向，右下 <b>开火键</b> 长按连发<br>' +
                 '电脑调试：<b>方向键</b> 移动，<b>空格</b> 开火，<b>P</b> 暂停<br>' +
                 '保护底部 <b>老鹰基地</b>，打完全部 20 辆敌坦克过关';
 

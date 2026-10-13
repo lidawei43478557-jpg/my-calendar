@@ -98,6 +98,24 @@ body { position: fixed; inset: 0; }
 .btn.ghost:active { background: #3a3a44; }
 #ov-row { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; margin-bottom: auto; }
 
+/* ---------- 地图预览 + 选关网格（开始菜单用）---------- */
+#menu-preview {
+  image-rendering: pixelated; image-rendering: crisp-edges;
+  width: 156px; height: 156px; background: #000; border: 2px solid #2b2b33; border-radius: 2px;
+  margin: 6px 0; display: none;
+}
+#ov-stages {
+  display: none; grid-template-columns: repeat(6, 1fr); gap: 6px;
+  max-width: 252px; margin: 8px auto 4px; width: 100%;
+}
+.stage-cell {
+  min-height: 34px; border: 1px solid #34343c; border-radius: 6px; background: #1e1e24;
+  color: #cfcfd8; font-size: 14px; font-family: inherit; font-variant-numeric: tabular-nums;
+  display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0;
+}
+.stage-cell:active { background: #34343c; }
+.stage-cell.cur { border-color: #f0b429; color: #f0b429; font-weight: 700; }
+
 /* ---------- 触控区 ---------- */
 #pad {
   flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between;
@@ -139,10 +157,10 @@ body { position: fixed; inset: 0; }
   border: 2px solid #ff9d7d; touch-action: none; cursor: pointer;
 }
 #fire:active, #fire.on { background: radial-gradient(circle at 50% 38%, #ffb199, #e85a30 70%); }
-#pad-side { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+#pad-side { display: flex; flex-direction: column; align-items: center; gap: 8px; margin-top: 36px; }
 #btn-sound {
   min-width: 64px; height: 44px; border: 0; border-radius: 10px; background: #1e1e24;
-  color: #8a8a95; font-size: 12px; font-family: inherit; cursor: pointer;
+  color: #8a8a95; font-size: 20px; line-height: 1; font-family: inherit; cursor: pointer;
   border: 1px solid #33333c;
 }
 
@@ -198,8 +216,10 @@ body { position: fixed; inset: 0; }
     <div id="overlay">
       <div id="ov-title">坦克大战</div>
       <div id="ov-sub">红白机经典复刻 · 纯本地运行</div>
+      <canvas id="menu-preview" width="104" height="104"></canvas>
       <div id="ov-stats"></div>
       <div id="ov-tips"></div>
+      <div id="ov-stages"></div>
       <div id="ov-row"></div>
     </div>
   </div>
@@ -212,7 +232,7 @@ body { position: fixed; inset: 0; }
     </div>
     <div id="pad-side">
       <button id="fire" type="button">开火</button>
-      <button id="btn-sound" type="button">音效 开</button>
+      <button id="btn-sound" type="button" aria-label="音效开关">🔊</button>
     </div>
   </div>
 
@@ -246,14 +266,16 @@ var CONFIG = {
   BULLET_H: 4,          // 子弹高
   ITEM: 16,             // 道具边长
 
-  /* ---- 移动速度（像素 / 秒）---- */
+  /* ---- 移动速度（像素 / 秒）----
+     依据 NES 原版反汇编实测（60fps，子弹每帧 2px=120、强化弹 4px=240；
+     坦克按 8px 网格 + 各档节奏，绝对速度比旧值更贴近原版"沉稳"手感）---- */
   SPEED: {
-    player: 68,         // 玩家坦克
-    normal: 46,         // 普通敌坦克
-    fast: 92,           // 快速敌坦克
-    armor: 40,          // 装甲敌坦克（血厚但慢）
-    bullet: 250,        // 子弹
-    bulletPower: 300    // 强化后的子弹
+    player: 54,         // 玩家坦克（原版基础档：约 0.9px/帧，稳健不飘）
+    normal: 38,         // 普通敌坦克（比玩家略慢，原版基础敌）
+    fast: 76,           // 快速敌坦克（约 2× 普通，原版最快档）
+    armor: 34,          // 装甲敌坦克（最慢，原版装甲档）
+    bullet: 120,        // 子弹（原版默认档：2px/帧）
+    bulletPower: 240    // 强化后的子弹（吃星后：4px/帧，原版快弹档）
   },
 
   /* ---- 血量 ---- */
@@ -1186,15 +1208,11 @@ function pixelCircle(ctx, cx, cy, r, color) {
 /* 砖墙：经典 FC 砖纹——深色砖缝打底，4 块 3x3 红砖错位排布，左上带高光。
    2x2 的小砖让"子弹一点点啃掉墙"的手感更明显。 */
 function drawBrick(ctx, x, y) {
-  px(ctx, x, y, 8, 8, COLORS.brickDark);          // 砖缝（深色底）
-  px(ctx, x,     y,     3, 3, COLORS.brick);       // 左上砖
-  px(ctx, x + 4, y,     3, 3, COLORS.brick);       // 右上砖
-  px(ctx, x,     y + 4, 3, 3, COLORS.brick);       // 左下砖
-  px(ctx, x + 4, y + 4, 3, 3, COLORS.brick);       // 右下砖
-  px(ctx, x,     y,     2, 1, COLORS.brickLite);   // 高光
-  px(ctx, x + 4, y,     2, 1, COLORS.brickLite);
-  px(ctx, x,     y + 4, 2, 1, COLORS.brickLite);
-  px(ctx, x + 4, y + 4, 2, 1, COLORS.brickLite);
+  px(ctx, x, y, 8, 8, COLORS.brick);            // 砖块主体（一整块 = 一个"小方块"，爆破按整格计）
+  px(ctx, x, y, 8, 1, COLORS.brickLite);        // 顶部高光
+  px(ctx, x, y, 1, 8, COLORS.brickLite);        // 左侧高光
+  px(ctx, x, y + 7, 8, 1, COLORS.brickDark);    // 底部暗边
+  px(ctx, x, y + 3, 8, 1, COLORS.brickDark);    // 一道砖缝（仅装饰，不分裂成小块）
 }
 
 /* 钢墙：实心金属块 + 高光边 */
@@ -2741,7 +2759,7 @@ var Input = {
    模块 10：UI / 主循环 / 启动
    ========================================================================== */
 
-var cv, ctx, elStage, elOverlay, elTitle, elSub, elStats, elTips, elRow;
+var cv, ctx, elStage, elOverlay, elTitle, elSub, elStats, elTips, elRow, elPreview, elStages;
 var hudStage, hudLife, hudEnemy, hudScore, hudBest, btnSound;
 var lastState = '';
 
@@ -2791,6 +2809,9 @@ function showOverlay(title, sub, stats, tips, buttons) {
   elStats.style.display = stats ? '' : 'none';
   elTips.innerHTML = tips || '';
   elTips.style.display = tips ? '' : 'none';
+  /* 地图预览 / 选关网格只在开始菜单显示，其它状态一律隐藏 */
+  elPreview.style.display = 'none';
+  elStages.style.display = 'none';
   elRow.innerHTML = '';
   for (var i = 0; i < (buttons || []).length; i++) {
     (function (b) {
@@ -2842,6 +2863,62 @@ function showMenu() {
       { text: '开始游戏', onClick: function () { startGame(false); } },
       { text: '随机战场', ghost: true, onClick: function () { startGame(true); } }
     ]);
+  /* 地图预览 + 选关网格（参考原版"选关"界面，让开始菜单更像一张战场地图） */
+  buildStageGrid();
+  drawMenuPreview();
+  elPreview.style.display = 'block';
+  elStages.style.display = 'grid';
+}
+
+/* 选关网格：1..N，点击直接开打对应关卡 */
+function buildStageGrid() {
+  if (!elStages) return;
+  elStages.innerHTML = '';
+  var total = Math.min(LEVELS.length, 35);   // 原版共 35 关，这里取手工 + 随机上限
+  for (var n = 1; n <= total; n++) {
+    (function (stageNo) {
+      var cell = document.createElement('button');
+      cell.type = 'button';
+      cell.className = 'stage-cell' + (stageNo === G.stage ? ' cur' : '');
+      cell.textContent = stageNo;
+      cell.addEventListener('click', function (e) {
+        e.preventDefault();
+        Sound.unlock();
+        startGame(false, stageNo);
+      });
+      elStages.appendChild(cell);
+    })(n);
+  }
+}
+
+/* 把当前菜单地图画成小地图预览（每 tile 4px），还原原版"战场缩略图"观感 */
+function drawMenuPreview() {
+  if (!elPreview || !G.tiles) return;
+  var pctx = elPreview.getContext('2d');
+  pctx.imageSmoothingEnabled = false;
+  pctx.fillStyle = '#000';
+  pctx.fillRect(0, 0, 104, 104);
+  var S = 4;
+  for (var ty = 0; ty < CONFIG.GRID; ty++) {
+    for (var tx = 0; tx < CONFIG.GRID; tx++) {
+      var v = G.tiles[ty * CONFIG.GRID + tx];
+      var c = null;
+      if (v === T_BRICK) c = COLORS.brick;
+      else if (v === T_STEEL) c = COLORS.steel;
+      else if (v === T_WATER) c = COLORS.water;
+      else if (v === T_GRASS) c = COLORS.grass;
+      if (c) { pctx.fillStyle = c; pctx.fillRect(tx * S, ty * S, S, S); }
+    }
+  }
+  /* 敌人三个出生点（顶部灰块） */
+  pctx.fillStyle = '#c8ccd0';
+  var slots = [[0, 0], [12, 0], [24, 0]];
+  for (var i = 0; i < slots.length; i++) {
+    pctx.fillRect(slots[i][0] * S, slots[i][1] * S, 2 * S, 2 * S);
+  }
+  /* 老鹰基地（底部中央金块） */
+  pctx.fillStyle = '#e8c020';
+  pctx.fillRect(G.baseX * S, G.baseY * S, 2 * S, 2 * S);
 }
 
 function showPause() {
@@ -2891,14 +2968,14 @@ function startStage(stage) {
   markTerrainDirty();
 }
 
-function startGame(random) {
+function startGame(random, startStageNo) {
   Sound.unlock();
   G.forceRandom = !!random;
   G.score = 0;
   G.lives = CONFIG.PLAYER_LIVES;
   inputState.dir = -1;
   inputState.fire = false;
-  startStage(1);
+  startStage(startStageNo || 1);
   G.state = 'playing';
   lastState = '';
   refreshOverlay();
@@ -2945,6 +3022,7 @@ function boot() {
   elOverlay = $('overlay');
   elTitle = $('ov-title'); elSub = $('ov-sub'); elStats = $('ov-stats');
   elTips = $('ov-tips'); elRow = $('ov-row');
+  elPreview = $('menu-preview'); elStages = $('ov-stages');
   hudStage = $('hud-stage'); hudLife = $('hud-life'); hudEnemy = $('hud-enemy');
   hudScore = $('hud-score'); hudBest = $('hud-best');
   btnSound = $('btn-sound');
@@ -2958,7 +3036,7 @@ function boot() {
     e.preventDefault();
     Sound.unlock();
     Sound.enabled = !Sound.enabled;
-    btnSound.textContent = Sound.enabled ? '音效 开' : '音效 关';
+    btnSound.textContent = Sound.enabled ? '🔊' : '🔇';
   });
 
   /* 尺寸自适应：旋转屏幕 / 地址栏收放都会触发 */

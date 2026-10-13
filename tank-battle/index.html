@@ -75,13 +75,18 @@ body { position: fixed; inset: 0; }
   align-items: center; justify-content: center; gap: 12px;
   background: rgba(0, 0, 0, .86); text-align: center; padding: 16px;
   border-radius: 2px; line-height: 1.5;
+  overflow-y: auto; -webkit-overflow-scrolling: touch;
 }
 #overlay.show { display: flex; }
-#ov-title { font-size: 22px; font-weight: 700; letter-spacing: 1px; }
+/* 内容短时居中、内容长时从顶部开始并可滚动（auto 外边距居中技巧） */
+#ov-title { font-size: 22px; font-weight: 700; letter-spacing: 1px; margin-top: auto; }
 #ov-title.small { font-size: 18px; }
 #ov-sub { font-size: 13px; color: #b9b9c4; max-width: 90%; }
 #ov-stats { font-size: 13px; color: #ffd24a; font-variant-numeric: tabular-nums; }
-#ov-tips { font-size: 12px; color: #8a8a95; line-height: 1.9; max-width: 92%; }
+#ov-tips { font-size: 12px; color: #9a9aa6; line-height: 1.7; max-width: 94%; text-align: left; }
+#ov-tips .help p { margin: 0 0 9px; }
+#ov-tips .help p:last-child { margin-bottom: 0; }
+#ov-tips .help b { color: #e6e6ee; font-weight: 600; }
 #ov-tips b { color: #d8d8e0; font-weight: 600; }
 .btn {
   min-height: 48px; min-width: 148px; padding: 0 22px; border: 0; border-radius: 12px;
@@ -91,7 +96,7 @@ body { position: fixed; inset: 0; }
 .btn:active { background: #d99e1c; }
 .btn.ghost { background: #2c2c34; color: #dcdce4; font-weight: 500; }
 .btn.ghost:active { background: #3a3a44; }
-#ov-row { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+#ov-row { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; margin-bottom: auto; }
 
 /* ---------- 触控区 ---------- */
 #pad {
@@ -189,13 +194,13 @@ body { position: fixed; inset: 0; }
   <div id="stage">
     <div id="frame">
       <canvas id="cv" width="224" height="208"></canvas>
-      <div id="overlay">
-        <div id="ov-title">坦克大战</div>
-        <div id="ov-sub">红白机经典复刻 · 纯本地运行</div>
-        <div id="ov-stats"></div>
-        <div id="ov-tips"></div>
-        <div id="ov-row"></div>
-      </div>
+    </div>
+    <div id="overlay">
+      <div id="ov-title">坦克大战</div>
+      <div id="ov-sub">红白机经典复刻 · 纯本地运行</div>
+      <div id="ov-stats"></div>
+      <div id="ov-tips"></div>
+      <div id="ov-row"></div>
     </div>
   </div>
 
@@ -1332,22 +1337,23 @@ function drawBullet(ctx, x, y, dir, power) {
    基地（老鹰）：16x16 像素点阵
    '.' 透明  'A' 主体  'B' 暗部  'C' 高光  'D' 深色勾边
    -------------------------------------------------------------------------- */
-/* 展翅的老鹰（经典 FC 风格）：头部居中、双翅向两侧张开、底部是底座 */
+/* 展翅的老鹰（经典 FC 风格）：头部居中、双翅向两侧大幅张开、底部是底座。
+   轮廓：窄头 → 中段双翅最宽 → 收成尾羽，整体像一只展翅的鹰。 */
 var BASE_ART = [
   '................',
   '.......AA.......',
-  '......AABA......',
   '......ABBA......',
   '.....AABBAA.....',
   '....AABBBBAA....',
   '...AABBBBBBAA...',
   '..AABBBBBBBBAA..',
   '.AABBBBBBBBBBAA.',
-  '.AAABBBBBBBBAAA.',
+  '.AABBBBBBBBBBAA.',
   '..AABBBBBBBBAA..',
   '...AABBBBBBAA...',
   '....AABBBBAA....',
-  '.....ABBBBA.....',
+  '.....AABBAA.....',
+  '......AAAA......',
   '...BBBBBBBBBB...',
   '..BBBBBBBBBBBB..'
 ];
@@ -1355,13 +1361,13 @@ var BASE_ART = [
 var BASE_DEAD_ART = [
   '................',
   '................',
-  '.....X..X.......',
-  '....XXX.XX......',
-  '...XXXXX.X......',
-  '..X.XXXXXX......',
-  '.X..XXXX...X....',
-  '.X..XXXX...X....',
-  '..X.XXXXXX......',
+  '.....XX..XX.....',
+  '....XXXX.XX.....',
+  '...XXXXXX.X.....',
+  '..XX.XXXXX......',
+  '.X..XXXX....X...',
+  '.X..XXXX....X...',
+  '..X.XXXXX.......',
   '...XX.X.XX......',
   '....X...X.......',
   '...X..X..X......',
@@ -1390,57 +1396,77 @@ function drawBaseArt(ctx, ox, oy, dead) {
 
 /* --------------------------------------------------------------------------
    道具：16x16 图标，全部几何绘制
+   每个道具 = 白色外框 + 专属"签名色"底 + 形象化图标。
+   既靠颜色区分、也靠外形区分，战场上扫一眼就能认出是哪种。
    -------------------------------------------------------------------------- */
-function drawItem(ctx, ox, oy, type) {
-  var cx = ox + 8, cy = oy + 8;
-  /* 外框：所有道具共用的白色边框，便于在战场上识别 */
-  px(ctx, ox + 1, oy + 1, 14, 1, '#ffffff');
-  px(ctx, ox + 1, oy + 14, 14, 1, '#ffffff');
-  px(ctx, ox + 1, oy + 1, 1, 14, '#ffffff');
-  px(ctx, ox + 14, oy + 1, 1, 14, '#ffffff');
+/* 六种道具的签名底色（顺序对应 ITEM_STAR..ITEM_CLOCK） */
+var ITEM_BG = ['#f2c200', '#2b2b30', '#3a7bd8', '#b0b4ba', '#3fae3a', '#e8503c'];
 
+/* 五角星（用于星星道具）：R 外半径，r 内半径 */
+function drawStar(ctx, cx, cy, R, r, color) {
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  for (var i = 0; i < 10; i++) {
+    var ang = -Math.PI / 2 + i * Math.PI / 5;
+    var rad = (i % 2 === 0) ? R : r;
+    var x = cx + Math.cos(ang) * rad;
+    var y = cy + Math.sin(ang) * rad;
+    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  }
+  ctx.closePath();
+  ctx.fill();
+}
+
+/* 每种道具的形象化图标（在 16x16 内居中绘制，底色已由 drawItem 铺好） */
+function drawItemIcon(ctx, ox, oy, type) {
+  var cx = ox + 8, cy = oy + 8;
   switch (type) {
-    case ITEM_STAR:   /* 星星：十字 + 四角 + 中心 */
-      px(ctx, ox + 2, oy + 7, 12, 2, COLORS.itemStar);
-      px(ctx, ox + 7, oy + 2, 2, 12, COLORS.itemStar);
-      px(ctx, ox + 4, oy + 4, 2, 2, COLORS.itemStar);
-      px(ctx, ox + 10, oy + 4, 2, 2, COLORS.itemStar);
-      px(ctx, ox + 4, oy + 10, 2, 2, COLORS.itemStar);
-      px(ctx, ox + 10, oy + 10, 2, 2, COLORS.itemStar);
-      px(ctx, ox + 6, oy + 6, 4, 4, '#ffffff');
+    case ITEM_STAR:    /* 星星：白色实心五角星 */
+      drawStar(ctx, cx, cy + 1, 6, 2.6, '#ffffff');
       break;
-    case ITEM_GRENADE: /* 手雷：圆弹体 + 引信 */
-      pixelCircle(ctx, cx, cy + 1, 5, COLORS.itemGrenade);
-      pixelCircle(ctx, cx - 1, cy, 2, '#d8dce0');
-      px(ctx, cx - 1, oy + 2, 2, 3, '#7a5a2a');
-      px(ctx, cx + 1, oy + 1, 2, 2, '#ff8a3c');
+    case ITEM_GRENADE: /* 手雷：灰黑弹体 + 引信 + 火花 */
+      pixelCircle(ctx, cx, cy + 1, 5, '#9aa0a8');
+      pixelCircle(ctx, cx - 1, cy, 2, '#e2e9ed');
+      px(ctx, cx + 1, oy + 3, 2, 4, '#8a5a2a');
+      px(ctx, cx + 2, oy + 2, 2, 2, '#ff8a3c');
+      px(ctx, cx + 3, oy + 1, 1, 2, '#ffe987');
       break;
-    case ITEM_HELMET:  /* 头盔：圆顶 + 帽檐 */
-      pixelCircle(ctx, cx, cy, 5, COLORS.itemHelmet);
-      px(ctx, ox + 2, oy + 10, 12, 3, COLORS.itemHelmet);
-      px(ctx, ox + 2, oy + 12, 12, 1, COLORS.baseDark);
-      px(ctx, cx - 3, cy - 2, 2, 2, '#ffffff');
+    case ITEM_HELMET:  /* 头盔：白色钢盔（圆顶 + 帽檐） */
+      pixelCircle(ctx, cx, cy, 5, '#ffffff');
+      px(ctx, ox + 2, oy + 11, 12, 2, '#ffffff');
+      px(ctx, cx - 3, cy - 1, 2, 2, '#cfe0ff');
       break;
-    case ITEM_SHOVEL:  /* 铲子：柄 + 铲头 */
-      px(ctx, ox + 7, oy + 2, 2, 7, '#8a5a2a');
-      px(ctx, ox + 4, oy + 9, 8, 5, COLORS.itemShovel);
-      px(ctx, ox + 4, oy + 9, 8, 1, '#ffffff');
-      px(ctx, ox + 5, oy + 12, 6, 1, COLORS.baseDark);
+    case ITEM_SHOVEL:  /* 铲子：木柄 + 钢铲头 */
+      px(ctx, ox + 7, oy + 2, 2, 8, '#8a5a2a');
+      px(ctx, ox + 3, oy + 10, 10, 5, '#2f2f35');
+      px(ctx, ox + 3, oy + 10, 10, 1, '#e2e9ed');
       break;
-    case ITEM_TANK:    /* 坦克：加一条命 */
-      px(ctx, ox + 3, oy + 4, 2, 9, COLORS.itemTank);
-      px(ctx, ox + 11, oy + 4, 2, 9, COLORS.itemTank);
-      px(ctx, ox + 5, oy + 5, 6, 8, COLORS.itemTank);
-      px(ctx, ox + 6, oy + 6, 4, 4, '#a8e89a');
-      px(ctx, ox + 7, oy + 2, 2, 4, '#a8e89a');
+    case ITEM_TANK:    /* 坦克：白色车体 + 炮管 + 履带 */
+      px(ctx, ox + 2, oy + 3, 2, 10, '#ffffff');
+      px(ctx, ox + 12, oy + 3, 2, 10, '#ffffff');
+      px(ctx, ox + 4, oy + 5, 8, 7, '#ffffff');
+      px(ctx, ox + 6, oy + 6, 4, 4, '#cfeccf');
+      px(ctx, ox + 7, oy + 2, 2, 4, '#ffffff');
       break;
-    case ITEM_CLOCK:   /* 时钟：红圆 + 指针 */
-      pixelCircle(ctx, cx, cy, 6, COLORS.itemClock);
-      pixelCircle(ctx, cx, cy, 4, '#ffffff');
+    case ITEM_CLOCK:   /* 时钟：红圈 + 白表盘 + 黑指针 */
+      pixelCircle(ctx, cx, cy, 6, '#e8503c');
+      pixelCircle(ctx, cx, cy, 5, '#ffffff');
       px(ctx, cx, oy + 4, 1, 5, '#2a2a30');
       px(ctx, cx, cy, 4, 1, '#2a2a30');
       break;
   }
+}
+
+function drawItem(ctx, ox, oy, type) {
+  /* 白色外框 */
+  px(ctx, ox + 1, oy + 1, 14, 1, '#ffffff');
+  px(ctx, ox + 1, oy + 14, 14, 1, '#ffffff');
+  px(ctx, ox + 1, oy + 1, 1, 14, '#ffffff');
+  px(ctx, ox + 14, oy + 1, 1, 14, '#ffffff');
+  /* 专属签名底色（让六种道具一眼可辨） */
+  px(ctx, ox + 2, oy + 2, 12, 12, ITEM_BG[type]);
+  /* 形象化图标 */
+  drawItemIcon(ctx, ox, oy, type);
 }
 
 /* --------------------------------------------------------------------------
@@ -2488,26 +2514,35 @@ var Input = {
     }
   },
 
-  /* ---- 圆形虚拟摇杆：浮动起点（手指按在底座任意处即以此为原点），
-         死区内不动，超出死区吸附到最近的四个方向；拇指视觉跟随；
-         在 window 上跟踪 touchmove/touchend，手指滑出底座仍能持续操控。 ---- */
+  /* ---- 圆形虚拟摇杆（固定圆心 + 大命中区，更跟手、不挑落点）----
+         针对"稍微超出圆圈就按不动"的改进：
+         1) touchstart 挂在 window，命中区覆盖"游戏中的左下半屏"，
+            手指不必精准压在圆圈上，落在附近即可激活；
+         2) 方向判定以"底座圆心"为固定原点，而非落点，
+            所以无论手指拖多远、拖到圈外，方向都保持、不会失灵；
+         3) 死区 DEAD 调小，轻微推动即可响应，灵敏度更高。 ---- */
   bindDpad: function () {
-    var self = this, el = this.dpadEl, stick = document.getElementById('stick');
+    var el = this.dpadEl, stick = document.getElementById('stick');
     var activeId = null, mouseActive = false;
-    var ox = 0, oy = 0;                 // 当前拖动的起点（触点初始位置）
-    var MAX_R = 52;                     // 拇指最大位移半径
-    var DEAD = 16;                      // 死区半径：小于此不移动
+    var MAX_R = 60;                     // 拇指视觉最大位移半径（只影响视觉，不影响方向）
+    var DEAD = 12;                      // 死区半径：小于此不移动（调小 => 更灵敏）
 
     function setStick(dx, dy) {
       if (stick) stick.style.transform = 'translate(' + dx + 'px,' + dy + 'px)';
+    }
+    /* 底座圆心（视口坐标）——方向判定的固定原点 */
+    function center() {
+      var r = el.getBoundingClientRect();
+      return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
     }
     function dirFromDelta(dx, dy) {
       if (Math.abs(dx) < DEAD && Math.abs(dy) < DEAD) return -1;
       if (Math.abs(dx) > Math.abs(dy)) return dx > 0 ? DIR.RIGHT : DIR.LEFT;
       return dy > 0 ? DIR.DOWN : DIR.UP;
     }
-    function moveTo(cx, cy) {
-      var dx = cx - ox, dy = cy - oy;
+    function apply(cx, cy) {
+      var c = center();
+      var dx = cx - c.x, dy = cy - c.y;
       var mag = Math.sqrt(dx * dx + dy * dy);
       if (mag > MAX_R) { dx = dx / mag * MAX_R; dy = dy / mag * MAX_R; }
       setStick(dx, dy);
@@ -2518,23 +2553,29 @@ var Input = {
       inputState.dir = -1;
       setStick(0, 0);
     }
-
-    /* touchstart 必须落在底座上；只认第一根按下的手指 */
+    /* 命中区：仅在游戏中、屏幕左半且 HUD 之下（避免误抢开火键 / 暂停键） */
+    function inZone(x, y) {
+      if (G.state !== 'playing') return false;
+      var hud = document.getElementById('hud');
+      var top = hud ? hud.getBoundingClientRect().bottom : 0;
+      return x < window.innerWidth * 0.5 && y > top;
+    }
     function onStart(e) {
+      if (activeId !== null) return;
+      var t = e.changedTouches ? e.changedTouches[0] : null;
+      if (!t) return;
+      if (!inZone(t.clientX, t.clientY)) return;
       e.preventDefault();
       Sound.unlock();
-      var t = e.changedTouches[0];
       activeId = t.identifier;
-      ox = t.clientX; oy = t.clientY;
-      setStick(0, 0);
+      apply(t.clientX, t.clientY);
     }
-    /* move / end 挂在 window，保证滑出底座仍跟踪 */
     function onMove(e) {
       if (activeId === null) return;
       e.preventDefault();
       var ts = e.changedTouches;
       for (var i = 0; i < ts.length; i++) {
-        if (ts[i].identifier === activeId) { moveTo(ts[i].clientX, ts[i].clientY); break; }
+        if (ts[i].identifier === activeId) { apply(ts[i].clientX, ts[i].clientY); break; }
       }
     }
     function onEnd(e) {
@@ -2545,22 +2586,20 @@ var Input = {
       }
     }
 
-    el.addEventListener('touchstart', onStart, { passive: false });
+    window.addEventListener('touchstart', onStart, { passive: false });
     window.addEventListener('touchmove', onMove, { passive: false });
     window.addEventListener('touchend', onEnd, { passive: false });
     window.addEventListener('touchcancel', onEnd, { passive: false });
 
-    /* 电脑调试：鼠标拖动摇杆也能玩 */
+    /* 电脑调试：鼠标拖动摇杆也能玩（同样以底座圆心判定方向） */
     el.addEventListener('mousedown', function (e) {
       e.preventDefault(); Sound.unlock();
-      mouseActive = true;
-      activeId = 'mouse';
-      ox = e.clientX; oy = e.clientY;
-      setStick(0, 0);
+      mouseActive = true; activeId = 'mouse';
+      apply(e.clientX, e.clientY);
     });
     window.addEventListener('mousemove', function (e) {
       if (!mouseActive) return;
-      moveTo(e.clientX, e.clientY);
+      apply(e.clientX, e.clientY);
     });
     window.addEventListener('mouseup', function () {
       if (!mouseActive) return;
@@ -2709,9 +2748,29 @@ function showOverlay(title, sub, stats, tips, buttons) {
 }
 function hideOverlay() { elOverlay.classList.remove('show'); }
 
-var MENU_TIPS = '左下 <b>圆形摇杆</b> 拖动控制方向，右下 <b>开火键</b> 长按连发<br>' +
-                '电脑调试：<b>方向键</b> 移动，<b>空格</b> 开火，<b>P</b> 暂停<br>' +
-                '保护底部 <b>老鹰基地</b>，打完全部 20 辆敌坦克过关';
+/* 道具色块小图标：与战场上道具的签名底色一一对应，帮助玩家建立"颜色=道具"的条件反射 */
+function itemChip(color, dark) {
+  return '<span style="display:inline-block;width:11px;height:11px;border-radius:2px;' +
+         'vertical-align:-1px;margin-right:5px;background:' + color + ';border:1px solid ' +
+         (dark ? '#6a6a72' : 'rgba(255,255,255,.4)') + '"></span>';
+}
+
+var MENU_TIPS =
+  '<div class="help">' +
+  '<p><b>操作</b>　左下 <b>圆形摇杆</b> 拖动控制方向，右下 <b>开火键</b> 长按连发。<br>' +
+  '电脑：<b>方向键 / WASD</b> 移动，<b>空格</b> 开火，<b>P</b> 暂停。</p>' +
+  '<p><b>目标</b>　保护底部 <b>老鹰基地</b>，消灭全部 20 辆敌坦克即可过关。</p>' +
+  '<p><b>六种道具</b>（吃到即生效，色块 = 战场上的道具颜色）：</p>' +
+  '<p>' + itemChip('#f2c200') + '<b>星星</b>：火力升级，可连发<br>' +
+  itemChip('#2b2b30', true) + '<b>手雷</b>：炸毁屏幕上全部敌人<br>' +
+  itemChip('#3a7bd8') + '<b>头盔</b>：一定时间内无敌<br>' +
+  itemChip('#b0b4ba') + '<b>铲子</b>：基地周围砖墙变钢墙（限时）<br>' +
+  itemChip('#3fae3a') + '<b>坦克</b>：额外 +1 条命<br>' +
+  itemChip('#e8503c') + '<b>时钟</b>：冻结敌人一段时间</p>' +
+  '<p><b>地形</b>　砖墙：普通子弹可打掉　·　钢墙：需强化子弹（吃星星后）才打穿<br>' +
+  '河流：坦克不可过、子弹可过　·　草丛：坦克可穿过但遮挡视线<br>' +
+  '老鹰基地：被击中即游戏结束，务必保护</p>' +
+  '</div>';
 
 function showMenu() {
   showOverlay('坦克大战', '红白机经典复刻 · 纯本地运行',

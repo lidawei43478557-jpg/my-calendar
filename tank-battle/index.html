@@ -138,8 +138,8 @@ body { position: fixed; inset: 0; }
 
 /* ---------- 触控区 ---------- */
 #pad {
-  flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between;
-  padding: 10px 22px calc(14px + env(safe-area-inset-bottom)) 22px; gap: 12px;
+  flex: 0 0 auto; display: flex; align-items: flex-end; justify-content: space-between;
+  padding: 6px 22px calc(16px + env(safe-area-inset-bottom)) 22px; gap: 12px;
 }
 /* ---------- 圆形虚拟摇杆：底座 + 可拖动拇指 ---------- */
 #dpad {
@@ -177,10 +177,11 @@ body { position: fixed; inset: 0; }
   border: 2px solid #ff9d7d; touch-action: none; cursor: pointer;
 }
 #fire:active, #fire.on { background: radial-gradient(circle at 50% 38%, #ffb199, #e85a30 70%); }
-#pad-side { display: flex; flex-direction: column; align-items: center; gap: 8px; margin-top: 36px; }
+/* 触控右侧：音效开关放在开火键"左侧"且与其同高，避免误触开火键正下方 */
+#pad-side { display: flex; flex-direction: row; align-items: flex-end; gap: 14px; }
 #btn-sound {
-  min-width: 64px; height: 44px; border: 0; border-radius: 10px; background: #1e1e24;
-  color: #8a8a95; font-size: 20px; line-height: 1; font-family: inherit; cursor: pointer;
+  min-width: 64px; height: 64px; border: 0; border-radius: 14px; background: #1e1e24;
+  color: #8a8a95; font-size: 22px; line-height: 1; font-family: inherit; cursor: pointer;
   border: 1px solid #33333c;
 }
 
@@ -256,8 +257,8 @@ body { position: fixed; inset: 0; }
       <div id="stick"></div>
     </div>
     <div id="pad-side">
-      <button id="fire" type="button">开火</button>
       <button id="btn-sound" type="button" aria-label="音效开关">🔊</button>
+      <button id="fire" type="button">开火</button>
     </div>
   </div>
 
@@ -277,13 +278,28 @@ body { position: fixed; inset: 0; }
    ========================================================================== */
 
 var CONFIG = {
-  /* ---- 画布与网格（单位：逻辑像素，1 tile = 8px，战场 26x26 tile = 208px）---- */
+  /* ---- 画布与网格（单位：逻辑像素，1 tile = 8px）----
+     战场为竖屏矩形：横向固定 13 个"块"（26 tile = 208px），
+     纵向块数 BH_BLOCKS 在启动时按设备可用高度动态计算，从而最大化利用手机纵向空间。
+     所有尺寸都由此推导，切勿在别处硬编码 26 / 208 / 224。---- */
   TILE: 8,              // 一个地形小格边长
-  GRID: 26,             // 战场 tile 行列数（13 个"块"，每块 2x2 tile）
-  FIELD: 208,           // 战场边长 = 26 * 8
+  BW_BLOCKS: 13,        // 横向块数（13 块 = 26 tile = 208px，固定）
+  BH_BLOCKS: 22,        // 纵向块数（默认值，启动时按设备高度再校准）
+  GRID_W: 26,           // 横向 tile 数 = BW_BLOCKS * 2
+  GRID_H: 44,           // 纵向 tile 数 = BH_BLOCKS * 2（启动时校准）
+  FIELD_W: 208,         // 战场宽 = GRID_W * TILE
+  FIELD_H: 352,         // 战场高 = GRID_H * TILE（启动时校准）
   SIDEBAR: 16,          // 右侧信息栏宽度
-  CANVAS_W: 224,        // 画布总宽 = 208 + 16
-  CANVAS_H: 208,
+  CANVAS_W: 224,        // 画布总宽 = FIELD_W + SIDEBAR
+  CANVAS_H: 352,        // 画布总高 = FIELD_H（启动时校准）
+
+  /* 按"纵向块数"重算所有派生尺寸（启动 / 旋屏校准时调用） */
+  setPortraitHeight: function (bh) {
+    CONFIG.BH_BLOCKS = bh;
+    CONFIG.GRID_H = bh * 2;
+    CONFIG.FIELD_H = CONFIG.GRID_H * CONFIG.TILE;
+    CONFIG.CANVAS_H = CONFIG.FIELD_H;
+  },
 
   /* ---- 实体尺寸 ---- */
   TANK: 16,             // 坦克边长（= 2 tile，即需求中"每格为坦克的 1/2 大小"）
@@ -873,14 +889,16 @@ var LEVELS = [
 ];
 
 /* --------------------------------------------------------------------------
-   把 13x13 的"块"展开成 26x26 的 tile 层
+   把"块"地图展开成 tile 层（横向固定 13 块 = 26 tile；纵向块数 = BH_BLOCKS）
    每个块变成 2x2 个 tile；砖块按 tile 独立存储，实现原版"逐小块被打掉"
+   块行不足 BH_BLOCKS 时纵向平铺，保证兜底关卡也能填满整幅战场。
    -------------------------------------------------------------------------- */
 function buildMap(blockRows) {
-  var tiles = new Uint8Array(CONFIG.GRID * CONFIG.GRID);
-  for (var by = 0; by < 13; by++) {
-    var row = blockRows[by] || '';
-    for (var bx = 0; bx < 13; bx++) {
+  var rows = blockRows.length;
+  var tiles = new Uint8Array(CONFIG.GRID_W * CONFIG.GRID_H);
+  for (var by = 0; by < CONFIG.BH_BLOCKS; by++) {
+    var row = blockRows[by % rows] || '';
+    for (var bx = 0; bx < CONFIG.BW_BLOCKS; bx++) {
       var ch = row.charAt(bx);
       var t = T_EMPTY;
       if (ch === 'B') t = T_BRICK;
@@ -890,7 +908,7 @@ function buildMap(blockRows) {
       if (t === T_EMPTY) continue;
       for (var dy = 0; dy < 2; dy++) {
         for (var dx = 0; dx < 2; dx++) {
-          tiles[(by * 2 + dy) * CONFIG.GRID + (bx * 2 + dx)] = t;
+          tiles[(by * 2 + dy) * CONFIG.GRID_W + (bx * 2 + dx)] = t;
         }
       }
     }
@@ -899,12 +917,12 @@ function buildMap(blockRows) {
 }
 
 /* tile 坐标 -> 索引 */
-function tileIdx(tx, ty) { return ty * CONFIG.GRID + tx; }
+function tileIdx(tx, ty) { return ty * CONFIG.GRID_W + tx; }
 
 /* 取 tile 类型（越界视为钢墙，防止走出战场） */
 function tileAt(tiles, tx, ty) {
-  if (tx < 0 || ty < 0 || tx >= CONFIG.GRID || ty >= CONFIG.GRID) return T_STEEL;
-  return tiles[ty * CONFIG.GRID + tx];
+  if (tx < 0 || ty < 0 || tx >= CONFIG.GRID_W || ty >= CONFIG.GRID_H) return T_STEEL;
+  return tiles[ty * CONFIG.GRID_W + tx];
 }
 
 
@@ -918,7 +936,11 @@ function tileAt(tiles, tx, ty) {
    原版 35 关每关由"砖墙迷宫 / 钢墙块 / 河流水塘 / 草丛森林 / 老鹰堡垒"等
    元素按不同组合构成，且大量关卡左右对称。这里改为：每关用随机数"组合"
    这些元素（带左右对称），既保留原版那种结构感，又让每一关都不同、更有
-   新鲜感；并保留 30 关手工关卡作为兜底（生成失败时使用）。
+   新鲜感；并保留 LEVELS 作为兜底（生成失败时使用）。
+
+   战场为竖屏矩形：横向固定 13 个"块"（26 tile），纵向块数 BH_BLOCKS 在启动
+   时按设备高度动态计算（见 CONFIG.setPortraitHeight），因此本文件所有纵向
+   坐标都用 CONFIG.BH_BLOCKS，绝不写死 13 / 11 / 9 之类。
 
    设计要点：
      - 每关用 stage 作种子（叠加 attempt），保证"选关"和菜单预览稳定可复现，
@@ -950,71 +972,76 @@ function generateRandomMap(stage) {
   return null;
 }
 
-/* ---- 单次尝试：在 13x13 块网格上组合地形元素 ---- */
+/* ---- 单次尝试：在 BW_BLOCKS × BH_BLOCKS 块网格上组合地形元素 ---- */
 function tryGenMap(stage, rng) {
-  var g = [], x, y;
-  for (y = 0; y < 13; y++) { g.push([]); for (x = 0; x < 13; x++) g[y].push(' '); }
+  var BW = CONFIG.BW_BLOCKS;
+  var BH = CONFIG.BH_BLOCKS;
+  var ROWS = BH - 2;     // 地形可用块行数：最底两行留给出生点 / 基地（与原版一致）
+
+  var g = [];
+  for (var y = 0; y < BH; y++) { g.push([]); for (var x = 0; x < BW; x++) g[y].push(' '); }
 
   function ri(n) { return Math.floor(rng() * n); }
   function rf() { return rng(); }
-  function inB(x, y) { return x >= 0 && x < 13 && y >= 0 && y < 13; }
+  function inB(x, y) { return x >= 0 && x < BW && y >= 0 && y < BH; }
   /* 普通写入 */
   function put(x, y, ch) { if (inB(x, y)) g[y][x] = ch; }
-  /* 左右对称写入：同时写 (x,y) 与 (12-x,y)，营造原版常见的对称布局 */
-  function putSym(x, y, ch) { put(x, y, ch); put(12 - x, y, ch); }
-  /* 草丛只落在空地（原版草丛长在空地上，坦克可穿行）；砖/钢/水可覆盖砖，但都保护草丛不被吞掉 */
+  /* 左右对称写入：同时写 (x,y) 与 (BW-1-x,y)，营造原版常见的对称布局 */
+  function putSym(x, y, ch) { put(x, y, ch); put(BW - 1 - x, y, ch); }
+  /* 草丛只落在空地；砖/钢/水可覆盖砖，但都保护草丛不被吞掉 */
   function putGrass(x, y) { if (inB(x, y) && g[y][x] === ' ') g[y][x] = 'G'; }
   function putSteel(x, y) { if (inB(x, y) && g[y][x] !== 'G' && g[y][x] !== 'W') g[y][x] = 'S'; }
   function putWater(x, y) { if (inB(x, y) && g[y][x] !== 'G' && g[y][x] !== 'S') g[y][x] = 'W'; }
 
   var tier = Math.min(1, (stage - 1) / 34);   // 0..1 难度梯度
+  var midY = ROWS >> 1;
 
   /* ---- 1) 砖墙骨架：从几种"原版常见砖阵"里随机挑一种 ---- */
   var brickMotif = ri(6);
   if (brickMotif === 0) {
     /* 砖格迷宫：棋盘格骨架，再随机挖掉一些 */
-    for (y = 0; y < 11; y++) for (x = 0; x < 13; x++) {
+    for (y = 0; y < ROWS; y++) for (x = 0; x < BW; x++) {
       if ((x + y) % 2 === 0) put(x, y, 'B');
     }
-    for (var k = 0; k < 18; k++) putSym(ri(13), ri(11), ' ');
+    for (var k = 0; k < 18; k++) putSym(ri(BW), ri(ROWS), ' ');
   } else if (brickMotif === 1) {
     /* 横向砖带 + 纵向砖柱交织 */
-    for (y = 0; y < 11; y++) for (x = 0; x < 13; x++) {
+    for (y = 0; y < ROWS; y++) for (x = 0; x < BW; x++) {
       if (y % 3 === 1 && x % 2 === 0) put(x, y, 'B');
       if (x % 4 === 2 && y % 2 === 0) put(x, y, 'B');
     }
   } else if (brickMotif === 2) {
-    /* 砖块簇：随机矩形砖块（保留随机打法的丰富感） */
-    var brickBudget = Math.floor(13 * 13 * (0.22 + 0.14 * tier));
+    /* 砖块簇：随机矩形砖块（保留随机打法的丰富感），预算按面积缩放 */
+    var brickBudget = Math.floor(BW * ROWS * (0.22 + 0.14 * tier));
     var placed = 0, guard = 0;
-    while (placed < brickBudget && guard++ < 800) {
+    while (placed < brickBudget && guard++ < 1400) {
       var w = 1 + ri(3), h = 1 + ri(3);
-      var ox = ri(13 - w + 1), oy = ri(12 - h + 1);
-      for (var yy = oy; yy < oy + h && yy < 12; yy++)
-        for (var xx = ox; xx < ox + w; xx++) if (g[yy][xx] === ' ') { g[yy][xx] = 'B'; placed++; }
+      var ox = ri(BW - w + 1), oy = ri(ROWS - h + 1);
+      for (var yy = oy; yy < oy + h && yy < ROWS; yy++)
+        for (var xx = ox; xx < ox + w && xx < BW; xx++) if (g[yy][xx] === ' ') { g[yy][xx] = 'B'; placed++; }
     }
   } else if (brickMotif === 3) {
-    /* 砖十字 / 砖加号 */
-    for (y = 0; y < 11; y++) putSym(6, y, 'B');
-    for (x = 2; x <= 10; x++) put(x, 5, 'B');
+    /* 砖十字 / 砖加号（居中，左右对称） */
+    for (y = 0; y < ROWS; y++) putSym(BW >> 1, y, 'B');
+    for (x = 2; x <= BW - 3; x++) put(x, midY, 'B');
   } else if (brickMotif === 4) {
     /* 砖框 + 内部砖格（堡垒感） */
-    for (x = 1; x <= 11; x++) { putSym(x, 1, 'B'); putSym(x, 9, 'B'); }
-    for (y = 1; y <= 9; y++) { putSym(1, y, 'B'); putSym(11, y, 'B'); }
-    for (y = 3; y <= 7; y += 2) for (x = 3; x <= 9; x += 2) putSym(x, y, 'B');
+    for (x = 1; x <= BW - 2; x++) { putSym(x, 1, 'B'); putSym(x, ROWS - 2, 'B'); }
+    for (y = 1; y <= ROWS - 2; y++) { putSym(1, y, 'B'); putSym(BW - 2, y, 'B'); }
+    for (y = 3; y <= ROWS - 4; y += 2) for (x = 3; x <= BW - 4; x += 2) putSym(x, y, 'B');
   } else {
     /* 砖竖条通道（只能纵向机动） */
-    for (y = 0; y < 11; y++) for (var c2 = 1; c2 < 13; c2 += 2) put(c2, y, 'B');
+    for (y = 0; y < ROWS; y++) for (var c2 = 1; c2 < BW; c2 += 2) put(c2, y, 'B');
   }
 
-  /* ---- 2) 草丛森林：成片草丛，遮挡视线（原版重要元素，优先占位，后续钢/水不吞草）---- */
+  /* ---- 2) 草丛森林：成片草丛，遮挡视线（优先占位，后续钢/水不吞草）---- */
   if (rf() < 0.92) {
     var forests = 1 + ri(2);                  // 1~2 片森林
     for (var f = 0; f < forests; f++) {
-      var gy0 = ri(4), gx0 = ri(4);
+      var gy0 = ri(Math.max(1, ROWS >> 1)), gx0 = ri(4);
       var gwd = 4 + ri(5), ght = 3 + ri(4);   // 较大片，确保可见
-      for (y = gy0; y < gy0 + ght && y < 11; y++)
-        for (x = gx0; x < gx0 + gwd && x < 13; x++) putGrass(x, y);
+      for (y = gy0; y < gy0 + ght && y < ROWS; y++)
+        for (x = gx0; x < gx0 + gwd && x < BW; x++) putGrass(x, y);
     }
   }
 
@@ -1027,20 +1054,26 @@ function tryGenMap(stage, rng) {
       var cols = [2, 4, 6, 8, 10];
       for (var ci = 0; ci < cols.length; ci++) {
         if (rf() < 0.7 || ci < 2) {
-          putSteel(cols[ci], 2 + ri(3)); putSteel(12 - cols[ci], 2 + ri(3));
-          putSteel(cols[ci], 3 + ri(3)); putSteel(12 - cols[ci], 3 + ri(3));
+          var sy = 2 + ri(Math.max(1, ROWS - 4));
+          putSteel(cols[ci], sy); putSteel(BW - 1 - cols[ci], sy);
+          putSteel(cols[ci], sy + 1); putSteel(BW - 1 - cols[ci], sy + 1);
         }
       }
     } else if (steelMotif === 1) {
-      /* 钢框：中间一个钢环（关键节点必放） */
-      for (x = 4; x <= 8; x++) { if (rf() < 0.85 || x === 6) { putSteel(x, 4); putSteel(12 - x, 4); putSteel(x, 8); putSteel(12 - x, 8); } }
-      for (y = 4; y <= 8; y++) { if (rf() < 0.85 || y === 6) { putSteel(4, y); putSteel(8, y); putSteel(12 - 4, y); putSteel(12 - 8, y); } }
+      /* 钢框：中间一个钢环（关键节点必放），居中于地形区 */
+      var top = Math.max(1, midY - 2), bot = Math.min(ROWS - 2, midY + 2);
+      for (x = (BW >> 1) - 2; x <= (BW >> 1) + 2; x++) {
+        if (rf() < 0.85 || x === (BW >> 1)) { putSteel(x, top); putSteel(BW - 1 - x, top); putSteel(x, bot); putSteel(BW - 1 - x, bot); }
+      }
+      for (y = top; y <= bot; y++) {
+        if (rf() < 0.85 || y === midY) { putSteel((BW >> 1) - 2, y); putSteel((BW >> 1) + 2, y); putSteel(BW - 1 - ((BW >> 1) - 2), y); putSteel(BW - 1 - ((BW >> 1) + 2), y); }
+      }
     } else {
       /* 散点钢块 */
       var sg = 0;
-      while (sg < steelCount && sg < 40) {
-        var sx = ri(13), sy = ri(11);
-        if (g[sy][sx] !== 'G' && g[sy][sx] !== 'W') { putSteel(sx, sy); sg++; }
+      while (sg < steelCount && sg < 60) {
+        var sx = ri(BW), sy2 = ri(ROWS);
+        if (g[sy2][sx] !== 'G' && g[sy2][sx] !== 'W') { putSteel(sx, sy2); sg++; }
       }
     }
   }
@@ -1049,61 +1082,66 @@ function tryGenMap(stage, rng) {
   if (rf() < 0.8) {
     if (rf() < 0.5) {
       /* 一汪水塘（矩形湖，对称镜像后留出两侧水道） */
-      var wx0 = 2 + ri(4), wy0 = 2 + ri(4);
+      var wx0 = 2 + ri(4), wy0 = 2 + ri(Math.max(1, ROWS - 4));
       var ww = 2 + ri(3), wh = 2 + ri(3);
-      for (y = wy0; y < wy0 + wh && y < 11; y++)
-        for (x = wx0; x < wx0 + ww && x < 12; x++) putWater(x, y);
+      for (y = wy0; y < wy0 + wh && y < ROWS; y++)
+        for (x = wx0; x < wx0 + ww && x < BW; x++) putWater(x, y);
     } else {
       /* 一条纵向/横向河，最多 5 格宽，且两侧必留空地 */
       var vertical = rf() < 0.5;
-      var pos = 3 + ri(6);
+      var pos = 3 + ri(Math.max(1, BW - 6));
       var len = 4 + ri(4);
-      var start = ri(Math.max(1, 11 - len));
+      var start = ri(Math.max(1, ROWS - len));
       for (var i = 0; i < len; i++) {
         var cx = vertical ? pos : start + i;
         var cy = vertical ? start + i : pos;
-        if (cy < 11) putWater(cx, cy);
+        if (cy < ROWS) putWater(cx, cy);
       }
     }
   }
 
   /* ---- 5) 兜底：若草丛/钢墙意外为 0，强制补一小块，保证丰富度下限 ---- */
   var hasGrass = false, hasSteel = false;
-  for (y = 0; y < 13; y++) for (x = 0; x < 13; x++) { if (g[y][x] === 'G') hasGrass = true; if (g[y][x] === 'S') hasSteel = true; }
+  for (y = 0; y < BH; y++) for (x = 0; x < BW; x++) { if (g[y][x] === 'G') hasGrass = true; if (g[y][x] === 'S') hasSteel = true; }
   if (!hasGrass) {
     var gPlaced = 0;
-    for (var gyf = 1; gyf < 11 && gPlaced < 20; gyf++)
-      for (var gxf = 1; gxf < 12 && gPlaced < 20; gxf++)
+    for (var gyf = 1; gyf < ROWS && gPlaced < 20; gyf++)
+      for (var gxf = 1; gxf < BW - 1 && gPlaced < 20; gxf++)
         if (g[gyf][gxf] === ' ') { putGrass(gxf, gyf); gPlaced++; }
   }
   if (!hasSteel) {
     var sPlaced = 0;
-    for (var syf = 2; syf < 11 && sPlaced < 4; syf++)
-      for (var sxf = 2; sxf < 11 && sPlaced < 4; sxf++)
+    for (var syf = 2; syf < ROWS && sPlaced < 4; syf++)
+      for (var sxf = 2; sxf < BW - 1 && sPlaced < 4; sxf++)
         if (g[syf][sxf] === 'B' || g[syf][sxf] === ' ') { putSteel(sxf, syf); sPlaced++; }
   }
 
-  /* ---- 6) 清出生点：敌人三点 + 玩家两点 + 基地一圈 ---- */
+  /* ---- 6) 清出生点（敌人三点 + 玩家两点）+ 基地一圈 ---- */
+  var baseRow = BH - 1, baseRow2 = BH - 2;
   var clearBlocks = [
+    /* 敌人三个出生点（顶部） */
     [0, 0], [1, 0], [6, 0], [12, 0], [11, 0], [0, 1], [12, 1],
-    [4, 12], [8, 12], [4, 11], [8, 11],
-    [5, 11], [6, 11], [7, 11], [5, 12], [7, 12], [6, 12]
+    /* 玩家两个出生点（底部） */
+    [4, baseRow], [8, baseRow], [4, baseRow2], [8, baseRow2],
+    /* 基地保护（底部中央） */
+    [5, baseRow], [6, baseRow], [7, baseRow], [5, baseRow2], [6, baseRow2], [7, baseRow2]
   ];
   for (var c = 0; c < clearBlocks.length; c++) {
     var bx = clearBlocks[c][0], by = clearBlocks[c][1];
-    if (by >= 0 && by < 13 && bx >= 0 && bx < 13) g[by][bx] = ' ';
+    if (inB(bx, by)) g[by][bx] = ' ';
   }
 
   /* 转成字符串行 */
   var rows = [];
-  for (y = 0; y < 13; y++) rows.push(g[y].join(''));
+  for (y = 0; y < BH; y++) rows.push(g[y].join(''));
   return rows;
 }
 
-/* ---- 可玩性校验：BFS 连通 + 空旷度 ---- */
+/* ---- 可玩性校验：BFS 连通 + 空旷度（按当前 GRID_W/GRID_H 与基地位置）---- */
 function validateMap(rows) {
   var tiles = buildMap(rows);
-  var N = CONFIG.GRID;
+  var W = CONFIG.GRID_W, H = CONFIG.GRID_H;
+  var baseXTile = 12, baseYTile = H - 2;   // 基地左上角 tile（占 2x2）
 
   /* 坦克能否站立：占 2x2 tile，且都不能是钢墙/河流/基地占位 */
   function standable(x, y) {
@@ -1111,31 +1149,26 @@ function validateMap(rows) {
       for (var dx = 0; dx < 2; dx++) {
         var t = tileAt(tiles, x + dx, y + dy);
         if (t === T_STEEL || t === T_WATER) return false;
-        if (isBaseTile(x + dx, y + dy)) return false;
+        if (x + dx >= baseXTile && x + dx <= baseXTile + 1 && y + dy >= baseYTile && y + dy <= baseYTile + 1) return false;
       }
     }
     return true;
   }
 
-  /* 基地占位：底部中央 2x2 块 = tile (12,24)-(13,25) */
-  function isBaseTile(x, y) {
-    return x >= 12 && x <= 13 && y >= 24 && y <= 25;
-  }
-
   /* 从起点 BFS，返回可达标记数组 */
   function flood(sx, sy) {
-    var seen = new Uint8Array(N * N);
+    var seen = new Uint8Array(W * H);
     if (!standable(sx, sy)) return seen;
-    var queue = [sy * N + sx];
-    seen[sy * N + sx] = 1;
+    var queue = [sy * W + sx];
+    seen[sy * W + sx] = 1;
     var head = 0, count = 1;
     while (head < queue.length) {
       var cur = queue[head++];
-      var cx = cur % N, cy = (cur / N) | 0;
+      var cx = cur % W, cy = (cur / W) | 0;
       for (var d = 0; d < 4; d++) {
         var nx = cx + DIR_VEC[d][0], ny = cy + DIR_VEC[d][1];
-        if (nx < 0 || ny < 0 || nx >= N - 1 || ny >= N - 1) continue;
-        var ni = ny * N + nx;
+        if (nx < 0 || ny < 0 || nx >= W - 1 || ny >= H - 1) continue;
+        var ni = ny * W + nx;
         if (seen[ni]) continue;
         if (!standable(nx, ny)) continue;
         seen[ni] = 1; count++;
@@ -1146,28 +1179,28 @@ function validateMap(rows) {
     return seen;
   }
 
-  /* 起点：玩家出生 tile (8,24) / (16,24) 中任选一个可站立的 */
-  var startX = standable(8, 24) ? 8 : (standable(16, 24) ? 16 : -1);
+  /* 起点：玩家出生 tile（8,baseYTile）/（16,baseYTile）中任选一个可站立的 */
+  var startX = standable(8, baseYTile) ? 8 : (standable(16, baseYTile) ? 16 : -1);
   if (startX < 0) return false;
-  var reach = flood(startX, 24);
+  var reach = flood(startX, baseYTile);
 
   /* 敌人三个出生点必须都能到达 */
   var enemySpawns = [[0, 0], [12, 0], [24, 0]];
   for (var i = 0; i < enemySpawns.length; i++) {
-    if (!reach[enemySpawns[i][1] * N + enemySpawns[i][0]]) return false;
+    if (!reach[enemySpawns[i][1] * W + enemySpawns[i][0]]) return false;
   }
 
-  /* 必须能摸到基地上方（tile 12,21 一带即基地保护墙外侧） */
+  /* 必须能摸到基地上方（基地保护墙外侧） */
   var nearBase = false;
   for (var bx2 = 10; bx2 <= 15 && !nearBase; bx2++) {
-    for (var by2 = 19; by2 <= 22 && !nearBase; by2++) {
-      if (reach[by2 * N + bx2]) nearBase = true;
+    for (var by2 = baseYTile - 4; by2 <= baseYTile - 1 && !nearBase; by2++) {
+      if (reach[by2 * W + bx2]) nearBase = true;
     }
   }
   if (!nearBase) return false;
 
   /* 空旷度：可达区域至少占战场 22%，避免挤成一团 */
-  if (reach.count < N * N * 0.22) return false;
+  if (reach.count < W * H * 0.22) return false;
 
   return true;
 }
@@ -1691,9 +1724,9 @@ var G = {
   score: 0,
   best: 0,
   lives: CONFIG.PLAYER_LIVES,
-  tiles: null,            // 26x26 的 Uint8Array
+  tiles: null,            // GRID_W × GRID_H 的 Uint8Array
   baseAlive: true,
-  baseX: 12, baseY: 24,   // 基地左上角 tile 坐标（占 2x2 tile）
+  baseX: 12, baseY: 42,   // 基地左上角 tile 坐标（占 2x2 tile，随竖向块数自适应）
   players: [],            // 我方坦克数组：单机 1 位，联机 2 位（[0]=黄，[1]=青）
   enemies: [],
   bullets: [],
@@ -1730,22 +1763,27 @@ function loadStage(stage, useRandom) {
   G.randomMode = true;
   G.stageRows = rows;
 
+  /* 基地固定在战场底部中央（占 2x2 tile），随竖向块数自适应 */
+  G.baseX = 12;
+  G.baseY = CONFIG.GRID_H - 2;
+
   var tiles = buildMap(rows);
 
   /* 基地：底部中央 2x2 tile，先清空再交由 base 对象接管碰撞 */
   clearTiles(tiles, G.baseX, G.baseY, 2, 2);
 
-  /* 基地周围 U 型砖墙保护：块 (5,11)(6,11)(7,11)(5,12)(7,12) */
-  var guard = [[5, 11], [6, 11], [7, 11], [5, 12], [7, 12]];
+  /* 基地周围 U 型砖墙保护（相对基地块行定位，兼容任意竖向高度） */
+  var bbY = G.baseY / 2;   // 基地所在块行 = BH_BLOCKS-1
+  var guard = [[5, bbY - 1], [6, bbY - 1], [7, bbY - 1], [5, bbY], [7, bbY]];
   for (var i = 0; i < guard.length; i++) {
     var bx = guard[i][0] * 2, by = guard[i][1] * 2;
     setTiles(tiles, bx, by, 2, 2, T_BRICK);
   }
 
-  /* 玩家出生点必须为空（tile 8,24 与 16,24） */
-  clearTiles(tiles, 8, 24, 2, 2);
-  clearTiles(tiles, 16, 24, 2, 2);
-  /* 敌人三个出生点必须为空 */
+  /* 玩家出生点必须为空（基地上方两格） */
+  clearTiles(tiles, 8, G.baseY, 2, 2);
+  clearTiles(tiles, 16, G.baseY, 2, 2);
+  /* 敌人三个出生点必须为空（顶部） */
   clearTiles(tiles, 0, 0, 2, 2);
   clearTiles(tiles, 12, 0, 2, 2);
   clearTiles(tiles, 24, 0, 2, 2);
@@ -1774,9 +1812,9 @@ function loadStage(stage, useRandom) {
   assignPlayerInputs();
 }
 
-/* 创建一个我方坦克：0 号黄（左出生点 8,24），1 号青（右出生点 16,24） */
+/* 创建一个我方坦克：0 号黄（左出生点），1 号青（右出生点），均在基地上方 */
 function makePlayer(slot) {
-  var p = createTank(true, ETYPE.NORMAL, slot === 0 ? 8 : 16, 24);
+  var p = createTank(true, ETYPE.NORMAL, slot === 0 ? 8 : 16, G.baseY);
   p.slot = slot;
   p.input = inputState;              // 默认用本机输入，联机时在 assignPlayerInputs() 里改派
   p.power = 1;
@@ -1806,8 +1844,8 @@ function clearTiles(tiles, tx, ty, w, h) { setTiles(tiles, tx, ty, w, h, T_EMPTY
 function setTiles(tiles, tx, ty, w, h, v) {
   for (var y = ty; y < ty + h; y++) {
     for (var x = tx; x < tx + w; x++) {
-      if (x < 0 || y < 0 || x >= CONFIG.GRID || y >= CONFIG.GRID) continue;
-      tiles[y * CONFIG.GRID + x] = v;
+      if (x < 0 || y < 0 || x >= CONFIG.GRID_W || y >= CONFIG.GRID_H) continue;
+      tiles[y * CONFIG.GRID_W + x] = v;
     }
   }
 }
@@ -1907,7 +1945,7 @@ function blocksTank(tx, ty) {
 
 /* 坦克能否位于 (nx, ny)：检查地形 + 其他坦克 + 边界。ignore 用于分离时临时排除另一只坦克 */
 function tankCanPlace(t, nx, ny, ignore) {
-  if (nx < 0 || ny < 0 || nx + t.w > CONFIG.FIELD || ny + t.h > CONFIG.FIELD) return false;
+  if (nx < 0 || ny < 0 || nx + t.w > CONFIG.FIELD_W || ny + t.h > CONFIG.FIELD_H) return false;
   var x0 = Math.floor(nx / CONFIG.TILE), x1 = Math.floor((nx + t.w - 1) / CONFIG.TILE);
   var y0 = Math.floor(ny / CONFIG.TILE), y1 = Math.floor((ny + t.h - 1) / CONFIG.TILE);
   for (var ty = y0; ty <= y1; ty++) {
@@ -2253,7 +2291,7 @@ function updateBullets(dt) {
     b.y += v[1] * b.speed * dt;
 
     /* 出界 */
-    if (b.x < 0 || b.y < 0 || b.x + b.w > CONFIG.FIELD || b.y + b.h > CONFIG.FIELD) {
+    if (b.x < 0 || b.y < 0 || b.x + b.w > CONFIG.FIELD_W || b.y + b.h > CONFIG.FIELD_H) {
       removeBullet(b);
       continue;
     }
@@ -2376,10 +2414,11 @@ function updateItems(dt) {
 /* 在随机空地掉落一个道具（找不到 2x2 空地时退回任意单格，保证必掉落） */
 function dropItem() {
   /* 优先：找一块 2x2 tile 的空地（避开基地与玩家出生区域） */
+  var baseBy = CONFIG.BH_BLOCKS - 1;
   for (var tries = 0; tries < 120; tries++) {
-    var bx = randInt(12), by = randInt(11);      // 块坐标（避开最底行）
+    var bx = randInt(CONFIG.BW_BLOCKS), by = randInt(CONFIG.BH_BLOCKS - 1);      // 块坐标（避开最底行）
     var px = bx * 16, py = by * 16;
-    if (by >= 11 && bx >= 4 && bx <= 8) continue;     // 基地保护区
+    if (by >= baseBy - 1 && bx >= 4 && bx <= 8) continue;     // 基地保护区
     var ok = true;
     for (var dy = 0; dy < 2 && ok; dy++) {
       for (var dx = 0; dx < 2; dx++) {
@@ -2395,7 +2434,7 @@ function dropItem() {
   }
   /* 兜底：任意单个空 tile，确保道具一定出现 */
   for (var t2 = 0; t2 < 200; t2++) {
-    var tx = randInt(CONFIG.GRID), ty = randInt(CONFIG.GRID - 2);
+    var tx = randInt(CONFIG.GRID_W), ty = randInt(CONFIG.GRID_H - 2);
     var vv = tileAt(G.tiles, tx, ty);
     if (vv !== T_EMPTY && vv !== T_GRASS) continue;
     if (tx >= G.baseX && tx <= G.baseX + 1 && ty >= G.baseY && ty <= G.baseY + 1) continue;
@@ -2462,14 +2501,15 @@ function applyItem(type, p) {
 
 /* 铲子：基地周围砖墙变钢墙，到时恢复 */
 function activateShovel() {
-  var guard = [[5, 11], [6, 11], [7, 11], [5, 12], [7, 12]];
+  var bbY = G.baseY / 2;   // 基地所在块行 = BH_BLOCKS-1
+  var guard = [[5, bbY - 1], [6, bbY - 1], [7, bbY - 1], [5, bbY], [7, bbY]];
   if (G.shovelTimer <= 0) {
     G.shovelBackup = [];
     for (var i = 0; i < guard.length; i++) {
       var bx = guard[i][0] * 2, by = guard[i][1] * 2;
       for (var dy = 0; dy < 2; dy++) {
         for (var dx = 0; dx < 2; dx++) {
-          var idx = (by + dy) * CONFIG.GRID + (bx + dx);
+          var idx = (by + dy) * CONFIG.GRID_W + (bx + dx);
           G.shovelBackup.push([idx, G.tiles[idx]]);
           G.tiles[idx] = T_STEEL;
         }
@@ -2611,8 +2651,8 @@ function markTerrainDirty() { terrainDirty = true; tilesRev++; }
 /* 收集水 / 草的 tile 列表（用于动画与遮挡层） */
 function collectTiles() {
   waterTiles = []; grassTiles = [];
-  for (var ty = 0; ty < CONFIG.GRID; ty++) {
-    for (var tx = 0; tx < CONFIG.GRID; tx++) {
+  for (var ty = 0; ty < CONFIG.GRID_H; ty++) {
+    for (var tx = 0; tx < CONFIG.GRID_W; tx++) {
       var v = tileAt(G.tiles, tx, ty);
       if (v === T_WATER) waterTiles.push([tx, ty]);
       else if (v === T_GRASS) grassTiles.push([tx, ty]);
@@ -2624,13 +2664,13 @@ function collectTiles() {
 function rebuildTerrain() {
   if (!terrainCanvas) {
     terrainCanvas = document.createElement('canvas');
-    terrainCanvas.width = CONFIG.FIELD;
-    terrainCanvas.height = CONFIG.FIELD;
+    terrainCanvas.width = CONFIG.FIELD_W;
+    terrainCanvas.height = CONFIG.FIELD_H;
   }
   var tc = terrainCanvas.getContext('2d');
-  tc.clearRect(0, 0, CONFIG.FIELD, CONFIG.FIELD);
-  for (var ty = 0; ty < CONFIG.GRID; ty++) {
-    for (var tx = 0; tx < CONFIG.GRID; tx++) {
+  tc.clearRect(0, 0, CONFIG.FIELD_W, CONFIG.FIELD_H);
+  for (var ty = 0; ty < CONFIG.GRID_H; ty++) {
+    for (var tx = 0; tx < CONFIG.GRID_W; tx++) {
       var v = tileAt(G.tiles, tx, ty);
       if (v === T_EMPTY) continue;
       var x = tx * CONFIG.TILE, y = ty * CONFIG.TILE;
@@ -2692,10 +2732,15 @@ function render(ctx) {
     }
   }
 
-  /* 草丛：画在坦克之上，形成"遮挡视线"的效果 */
+  /* 草丛：画在坦克之上形成"遮挡视线"的效果。
+     半透明绘制：底部的草丛是不透明底层（草地区域观感不变），
+     这一层半透明覆盖让"藏在草里的坦克"仍能隐约看到轮廓（尤其是敌方坦克）。 */
+  ctx.save();
+  ctx.globalAlpha = 0.55;
   for (var gt = 0; gt < grassTiles.length; gt++) {
     drawGrass(ctx, grassTiles[gt][0] * CONFIG.TILE, grassTiles[gt][1] * CONFIG.TILE);
   }
+  ctx.restore();
 
   /* 子弹 */
   for (var b = 0; b < G.bullets.length; b++) {
@@ -2722,11 +2767,11 @@ function render(ctx) {
   }
 
   /* 右侧信息栏 */
-  drawSideBar(ctx, CONFIG.FIELD, G.enemiesLeft, G.lives);
+  drawSideBar(ctx, CONFIG.FIELD_W, G.enemiesLeft, G.lives);
 
   /* 冻结 / 钢化状态提示：画在战场顶部一条细线 */
-  if (G.freezeTimer > 0) px(ctx, 0, 0, CONFIG.FIELD, 2, '#4a6bff');
-  if (G.shovelTimer > 0) px(ctx, 0, 2, CONFIG.FIELD, 2, '#a9b0b5');
+  if (G.freezeTimer > 0) px(ctx, 0, 0, CONFIG.FIELD_W, 2, '#4a6bff');
+  if (G.shovelTimer > 0) px(ctx, 0, 2, CONFIG.FIELD_W, 2, '#a9b0b5');
 }
 
 
@@ -3446,63 +3491,14 @@ function showMenu() {
       { text: '随机战场', ghost: true, onClick: function () { startGame(true); } },
       { text: '联机双人', ghost: true, onClick: function () { openNetMenu(); } }
     ]);
-  /* 地图预览 + 选关网格（参考原版"选关"界面，让开始菜单更像一张战场地图） */
-  buildStageGrid();
-  drawMenuPreview();
-  elPreview.style.display = 'block';
-  elStages.style.display = 'grid';
+  /* 主菜单不再显示"选关"网格与大地图预览，保证三个按钮清晰可见 */
 }
 
-/* 选关网格：1..N，点击直接开打对应关卡 */
-function buildStageGrid() {
-  if (!elStages) return;
-  elStages.innerHTML = '';
-  var total = Math.min(LEVELS.length, 35);   // 原版共 35 关，这里取手工 + 随机上限
-  for (var n = 1; n <= total; n++) {
-    (function (stageNo) {
-      var cell = document.createElement('button');
-      cell.type = 'button';
-      cell.className = 'stage-cell' + (stageNo === G.stage ? ' cur' : '');
-      cell.textContent = stageNo;
-      cell.addEventListener('click', function (e) {
-        e.preventDefault();
-        Sound.unlock();
-        startGame(false, stageNo);
-      });
-      elStages.appendChild(cell);
-    })(n);
-  }
-}
+/* 选关网格：1..N（已下架，保留空函数以免遗留引用报错） */
+function buildStageGrid() { if (elStages) elStages.innerHTML = ''; }
 
-/* 把当前菜单地图画成小地图预览（每 tile 4px），还原原版"战场缩略图"观感 */
-function drawMenuPreview() {
-  if (!elPreview || !G.tiles) return;
-  var pctx = elPreview.getContext('2d');
-  pctx.imageSmoothingEnabled = false;
-  pctx.fillStyle = '#000';
-  pctx.fillRect(0, 0, 104, 104);
-  var S = 4;
-  for (var ty = 0; ty < CONFIG.GRID; ty++) {
-    for (var tx = 0; tx < CONFIG.GRID; tx++) {
-      var v = G.tiles[ty * CONFIG.GRID + tx];
-      var c = null;
-      if (v === T_BRICK) c = COLORS.brick;
-      else if (v === T_STEEL) c = COLORS.steel;
-      else if (v === T_WATER) c = COLORS.water;
-      else if (v === T_GRASS) c = COLORS.grass;
-      if (c) { pctx.fillStyle = c; pctx.fillRect(tx * S, ty * S, S, S); }
-    }
-  }
-  /* 敌人三个出生点（顶部灰块） */
-  pctx.fillStyle = '#c8ccd0';
-  var slots = [[0, 0], [12, 0], [24, 0]];
-  for (var i = 0; i < slots.length; i++) {
-    pctx.fillRect(slots[i][0] * S, slots[i][1] * S, 2 * S, 2 * S);
-  }
-  /* 老鹰基地（底部中央金块） */
-  pctx.fillStyle = '#e8c020';
-  pctx.fillRect(G.baseX * S, G.baseY * S, 2 * S, 2 * S);
-}
+/* 菜单地图预览（已下架，保留空函数以免遗留引用报错） */
+function drawMenuPreview() { /* no-op */ }
 
 function showPause() {
   showOverlay('已暂停', '第 ' + G.stage + ' 关',
@@ -3554,14 +3550,14 @@ function openNetMenu() {
     netShowPanel(false);
     return;
   }
-  elNetStatus.textContent = '创建房间，或输入 4 位房间码加入';
+  elNetStatus.textContent = '一台点“创建房间”，另一台点“加入房间”';
   elNetCode.textContent = '';
-  showOverlay('联机双人', '两台设备各操控一名坦克',
+  showOverlay('联机双人', '两台手机各玩一辆坦克',
     '',
     '<div class="help">' +
-    '<p>① 一方点 <b>创建房间</b>，生成 4 位房间码；</p>' +
-    '<p>② 另一方点 <b>加入房间</b>，输入房间码；</p>' +
-    '<p>③ 双方连线后自动开打：<b>黄坦克</b>由创建方操控，<b>青坦克</b>由加入方操控。</p>' +
+    '<p>两台手机都打开这个游戏，一台点 <b>创建房间</b>，另一台点 <b>加入房间</b>。</p>' +
+    '<p>加入方输入创建方屏幕上显示的 <b>4 位房间码</b> 即可连上——不用注册账号，游戏数据只在两台手机之间直连，不经过任何服务器。</p>' +
+    '<p>连上后自动开打：<b>黄坦克</b>由创建方操控，<b>青坦克</b>由加入方操控，齐心协力保住基地。</p>' +
     '</div>',
     [
       { text: '创建房间', onClick: function () { startHosting(); } },
@@ -3627,14 +3623,20 @@ function beginCoop() {
     G.score = 0;
     G.lives = CONFIG.PLAYER_LIVES;
     inputState.dir = -1; inputState.fire = false;
-    startStage(1);
-    G.state = 'playing';
+    startStage(1);   // 内部会按 Net.coop 追加第二辆坦克（青）
   } else {
-    G.tiles = new Uint8Array(CONFIG.GRID * CONFIG.GRID);
-    G.state = 'playing';
+    G.tiles = new Uint8Array(CONFIG.GRID_W * CONFIG.GRID_H);
   }
+  /* 先弹一个"已连接"提示，再进入游戏 */
+  G.state = 'coopIntro';
   lastState = '';
   refreshOverlay();
+  setTimeout(function () {
+    if (Net.mode === 'off') return;     // 期间掉线则不进入
+    G.state = 'playing';
+    lastState = '';
+    refreshOverlay();
+  }, 1100);
 }
 
 /* 对手掉线 */
@@ -3653,6 +3655,7 @@ function refreshOverlay() {
   else if (G.state === 'paused') showPause();
   else if (G.state === 'stageClear') showStageClear();
   else if (G.state === 'gameOver') showGameOver();
+  else if (G.state === 'coopIntro') showOverlay('已连接', '双人同玩开始！', '', '', []);
   else hideOverlay();
 }
 
@@ -3762,11 +3765,30 @@ function boot() {
     gameOver: gameOver, saveBest: saveBest, togglePause: togglePause,
     damageTile: damageTile, separateTanks: separateTanks, hitRect: hitRect,
     validateMap: validateMap, tileAt: tileAt,
+    collectTiles: collectTiles, markTerrainDirty: markTerrainDirty,
     T: { EMPTY: T_EMPTY, BRICK: T_BRICK, STEEL: T_STEEL, WATER: T_WATER, GRASS: T_GRASS },
     /* 快进 n 帧（用于自动化验证，无需真的等 10 秒） */
     tick: function (n) { for (var i = 0; i < n; i++) update(CONFIG.STEP); },
     render: function () { render(ctx); }
   };
+
+  /* 竖屏自适应：按"战场可用区域"的高度把战场加高，最大化利用手机纵向空间。
+     纵向块数 BH_BLOCKS = 横向块数 × (可用高 / 可用宽)，并夹在 [16,28] 之间，
+     这样无论什么比例的手机，战场都能铺满、上下几乎不留空。 */
+  function computeBH() {
+    var w = elStage ? elStage.clientWidth : 0;
+    var h = elStage ? elStage.clientHeight : 0;
+    if (w <= 0 || h <= 0) return CONFIG.BH_BLOCKS;   // 布局尚未就绪，用默认值
+    /* 让"画布(含右侧信息栏)整体"的长宽比与战场可用区一致：
+       画布宽 = CANVAS_W(224) = 28 tile = 14 块；由此反推纵向块数，
+       使战场在竖屏里上下都铺满、不留空白（仅信息栏占右侧少量横向空间）。 */
+    var bh = Math.round((CONFIG.CANVAS_W / CONFIG.TILE) * h / w / 2);
+    return Math.max(16, Math.min(28, bh));
+  }
+  CONFIG.setPortraitHeight(computeBH());
+  cv.width = CONFIG.CANVAS_W;
+  cv.height = CONFIG.CANVAS_H;
+  measure();   // 用新的画布尺寸重新缩放
 
   /* 菜单背景用第 1 关地图，好看一点 */
   startStage(1);

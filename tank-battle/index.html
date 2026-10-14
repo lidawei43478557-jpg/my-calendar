@@ -70,17 +70,23 @@ body { position: fixed; inset: 0; }
 }
 
 /* ---------- 覆盖层：开始 / 暂停 / 过关 / 结束 ---------- */
-/* 三段式：标题(顶) / 内容(中，超出可滚动) / 按钮(底)，保证首尾不被长文案挤出屏幕 */
+/* 全屏覆盖（position:fixed 脱离战场区高度限制），三段式：标题(顶) / 内容(中，超出可滚动) / 按钮(底)。
+   这样菜单有整屏空间放下完整玩法说明，且不受底部摇杆区域高度变化影响，长文案不再被裁。 */
 #overlay {
-  position: absolute; inset: 0; display: none; flex-direction: column;
-  background: rgba(0, 0, 0, .86); text-align: center; padding: 10px 16px;
-  border-radius: 2px; line-height: 1.5;
+  position: fixed; inset: 0; z-index: 100; display: none; flex-direction: column;
+  background: rgba(0, 0, 0, .88); text-align: center; line-height: 1.5;
+  padding: calc(12px + env(safe-area-inset-top)) 16px calc(12px + env(safe-area-inset-bottom));
 }
 #overlay.show { display: flex; }
+/* 覆盖层打开时放行纵向滚动：否则 html,body 的 touch-action:none 会让手机端"菜单长文案"滚不动、
+   底部几行被永久遮挡。仅在弹层打开时生效，游戏中仍为 none，不影响摇杆/开火。 */
+html.ov-open, html.ov-open body { touch-action: pan-y; }
+#overlay { touch-action: pan-y; }
 #ov-head { flex: 0 0 auto; display: flex; flex-direction: column; align-items: center; gap: 8px; padding-top: 2px; }
 #ov-body {
   flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column;
   align-items: center; gap: 10px; padding: 8px 0; overflow-y: auto; -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
 }
 #ov-foot { flex: 0 0 auto; display: flex; align-items: center; justify-content: center; padding-bottom: 2px; }
 #ov-title { font-size: 22px; font-weight: 700; letter-spacing: 1px; flex: 0 0 auto; }
@@ -141,9 +147,10 @@ body { position: fixed; inset: 0; }
 #net-input::placeholder { font-size: 14px; letter-spacing: 1px; color: #6a6a75; font-weight: 400; }
 
 /* ---------- 触控区 ---------- */
+/* 触控区：顶部留出较大空隙，让摇杆/开火键整体远离战场，避免手指贴到摇杆上沿时遮住地图 */
 #pad {
   flex: 0 0 auto; display: flex; align-items: flex-end; justify-content: space-between;
-  padding: 6px 22px calc(4px + env(safe-area-inset-bottom)) 22px; gap: 12px;
+  padding: 36px 22px calc(4px + env(safe-area-inset-bottom)) 22px; gap: 12px;
 }
 /* ---------- 圆形虚拟摇杆：底座 + 可拖动拇指 ---------- */
 #dpad {
@@ -400,6 +407,7 @@ var COLORS = {
   armor4: '#e8c020', armor3: '#5ac44a', armor2: '#e88a20', armor1: '#c8ccd0',
   armorDark: '#6a6a70',
   bullet: '#ffffff', bulletLite: '#ffe987',
+  bulletGold: '#ffcc22', bulletGoldLite: '#fff2b0', bulletGoldEdge: '#ffe06a',
   base: '#d8d8d8', baseDark: '#8a8a90', baseDead: '#5a5a60',
   hud: '#ffffff', text: '#e8e8e8',
   itemStar: '#ffe987', itemGrenade: '#9aa0a8', itemHelmet: '#c8ccd0',
@@ -1580,14 +1588,19 @@ function drawBullet(ctx, x, y, dir, power) {
   var w = dir === DIR.UP || dir === DIR.DOWN ? CONFIG.BULLET_W : CONFIG.BULLET_H;
   var h = dir === DIR.UP || dir === DIR.DOWN ? CONFIG.BULLET_H : CONFIG.BULLET_W;
   var bx = x, by = y;
-  px(ctx, bx, by, w, h, COLORS.bullet);
-  if (dir === DIR.UP) px(ctx, bx, by, w, 1, COLORS.bulletLite);
-  else if (dir === DIR.DOWN) px(ctx, bx, by + h - 1, w, 1, COLORS.bulletLite);
-  else if (dir === DIR.LEFT) px(ctx, bx, by, 1, h, COLORS.bulletLite);
-  else px(ctx, bx + w - 1, by, 1, h, COLORS.bulletLite);
-  if (power >= 2) {
-    px(ctx, bx - 1, by - 1, w + 2, 1, COLORS.itemStar);
-    px(ctx, bx - 1, by + h, w + 2, 1, COLORS.itemStar);
+  var powered = power >= 2;
+  /* 普通弹=白；强化弹（吃星星后）=金，一眼可区分 */
+  var body = powered ? COLORS.bulletGold : COLORS.bullet;
+  var lite = powered ? COLORS.bulletGoldLite : COLORS.bulletLite;
+  px(ctx, bx, by, w, h, body);
+  if (dir === DIR.UP) px(ctx, bx, by, w, 1, lite);
+  else if (dir === DIR.DOWN) px(ctx, bx, by + h - 1, w, 1, lite);
+  else if (dir === DIR.LEFT) px(ctx, bx, by, 1, h, lite);
+  else px(ctx, bx + w - 1, by, 1, h, lite);
+  if (powered) {
+    /* 强化弹外套一圈金色描边，进一步强化"金色强化弹"的辨识度 */
+    px(ctx, bx - 1, by - 1, w + 2, 1, COLORS.bulletGoldEdge);
+    px(ctx, bx - 1, by + h, w + 2, 1, COLORS.bulletGoldEdge);
   }
 }
 
@@ -3539,8 +3552,14 @@ function showOverlay(title, sub, stats, tips, buttons) {
     })(buttons[i]);
   }
   elOverlay.classList.add('show');
+  /* 弹层打开时允许纵向滚动（见 00-head.html 的 html.ov-open 规则），
+     使手机端能滚动查看完整玩法说明，避免底部文字被遮挡。 */
+  document.documentElement.classList.add('ov-open');
 }
-function hideOverlay() { elOverlay.classList.remove('show'); }
+function hideOverlay() {
+  elOverlay.classList.remove('show');
+  document.documentElement.classList.remove('ov-open');
+}
 
 /* 道具色块小图标：与战场上道具的签名底色一一对应，帮助玩家建立"颜色=道具"的条件反射 */
 function itemChip(color, dark) {

@@ -70,16 +70,20 @@ body { position: fixed; inset: 0; }
 }
 
 /* ---------- 覆盖层：开始 / 暂停 / 过关 / 结束 ---------- */
+/* 三段式：标题(顶) / 内容(中，超出可滚动) / 按钮(底)，保证首尾不被长文案挤出屏幕 */
 #overlay {
   position: absolute; inset: 0; display: none; flex-direction: column;
-  align-items: center; justify-content: center; gap: 12px;
-  background: rgba(0, 0, 0, .86); text-align: center; padding: 16px;
+  background: rgba(0, 0, 0, .86); text-align: center; padding: 10px 16px;
   border-radius: 2px; line-height: 1.5;
-  overflow-y: auto; -webkit-overflow-scrolling: touch;
 }
 #overlay.show { display: flex; }
-/* 内容短时居中、内容长时从顶部开始并可滚动（auto 外边距居中技巧） */
-#ov-title { font-size: 22px; font-weight: 700; letter-spacing: 1px; margin-top: auto; }
+#ov-head { flex: 0 0 auto; display: flex; flex-direction: column; align-items: center; gap: 8px; padding-top: 2px; }
+#ov-body {
+  flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column;
+  align-items: center; gap: 10px; padding: 8px 0; overflow-y: auto; -webkit-overflow-scrolling: touch;
+}
+#ov-foot { flex: 0 0 auto; display: flex; align-items: center; justify-content: center; padding-bottom: 2px; }
+#ov-title { font-size: 22px; font-weight: 700; letter-spacing: 1px; flex: 0 0 auto; }
 #ov-title.small { font-size: 18px; }
 #ov-sub { font-size: 13px; color: #b9b9c4; max-width: 90%; }
 #ov-stats { font-size: 13px; color: #ffd24a; font-variant-numeric: tabular-nums; }
@@ -96,7 +100,7 @@ body { position: fixed; inset: 0; }
 .btn:active { background: #d99e1c; }
 .btn.ghost { background: #2c2c34; color: #dcdce4; font-weight: 500; }
 .btn.ghost:active { background: #3a3a44; }
-#ov-row { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; margin-bottom: auto; }
+#ov-row { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
 
 /* ---------- 地图预览 + 选关网格（开始菜单用）---------- */
 #menu-preview {
@@ -139,7 +143,7 @@ body { position: fixed; inset: 0; }
 /* ---------- 触控区 ---------- */
 #pad {
   flex: 0 0 auto; display: flex; align-items: flex-end; justify-content: space-between;
-  padding: 6px 22px calc(16px + env(safe-area-inset-bottom)) 22px; gap: 12px;
+  padding: 6px 22px calc(4px + env(safe-area-inset-bottom)) 22px; gap: 12px;
 }
 /* ---------- 圆形虚拟摇杆：底座 + 可拖动拇指 ---------- */
 #dpad {
@@ -235,18 +239,24 @@ body { position: fixed; inset: 0; }
       <canvas id="cv" width="224" height="208"></canvas>
     </div>
     <div id="overlay">
-      <div id="ov-title">坦克大战</div>
-      <div id="ov-sub">红白机经典复刻 · 纯本地运行</div>
-      <canvas id="menu-preview" width="104" height="104"></canvas>
-      <div id="ov-stats"></div>
-      <div id="net-panel">
-        <div id="net-status"></div>
-        <div id="net-code"></div>
-        <input id="net-input" type="text" maxlength="4" inputmode="text" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="输入 4 位房间码">
+      <div id="ov-head">
+        <div id="ov-title">坦克大战</div>
+        <div id="ov-sub">红白机经典复刻 · 纯本地运行</div>
+        <div id="ov-stats"></div>
       </div>
-      <div id="ov-tips"></div>
-      <div id="ov-stages"></div>
-      <div id="ov-row"></div>
+      <div id="ov-body">
+        <canvas id="menu-preview" width="104" height="104"></canvas>
+        <div id="net-panel">
+          <div id="net-status"></div>
+          <div id="net-code"></div>
+          <input id="net-input" type="text" maxlength="4" inputmode="text" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="输入 4 位房间码">
+        </div>
+        <div id="ov-tips"></div>
+        <div id="ov-stages"></div>
+      </div>
+      <div id="ov-foot">
+        <div id="ov-row"></div>
+      </div>
     </div>
   </div>
 
@@ -1232,6 +1242,9 @@ var Sound = {
         this.master = this.ctx.createGain();
         this.master.gain.value = 0.5;
         this.master.connect(this.ctx.destination);
+        this.bgmGain = this.ctx.createGain();
+        this.bgmGain.gain.value = 0.9;          // BGM 总线，整体压低一点不盖过音效
+        this.bgmGain.connect(this.master);
       }
       if (this.ctx.state === 'suspended') this.ctx.resume();
     } catch (e) { /* 不支持音频就静默降级 */ }
@@ -1326,6 +1339,76 @@ var Sound = {
       case 'move':       // 履带声（很轻，仅键盘/触屏按下时偶尔触发）
         break;
     }
+  },
+
+  /* --------------------------------------------------------------------------
+     背景音乐：关卡内循环播放（纯合成，不加载音频文件）
+     设计：主旋律(triangle) + 低音(square) 双声部，每步 1 拍循环；
+           lookahead 调度器避免计时漂移；随游戏状态自动开关，并服从静音开关。
+     -------------------------------------------------------------------------- */
+  bgmOn: false,
+  bgmTimer: null,
+  bgmStep: 0,
+  bgmNext: 0,
+  bgmBeat: 0.15,          // 每拍时长（秒），约 100 BPM 的八分音符
+
+  /* [主旋律频率, 低音频率]，0 = 休止；每步 1 拍，循环播放（C 大调进行曲感） */
+  BGM: [
+    [659.25, 110.00], [783.99, 110.00], [880.00, 82.41], [783.99, 82.41],
+    [659.25, 87.31], [587.33, 87.31], [523.25, 130.81], [587.33, 130.81],
+    [659.25, 110.00], [783.99, 110.00], [880.00, 82.41], [659.25, 82.41],
+    [587.33, 87.31], [523.25, 87.31], [440.00, 130.81], [523.25, 130.81],
+    [587.33, 110.00], [659.25, 110.00], [523.25, 82.41], [440.00, 82.41],
+    [523.25, 73.42], [440.00, 73.42], [392.00, 110.00], [523.25, 110.00],
+    [587.33, 98.00], [659.25, 98.00], [698.46, 146.83], [659.25, 146.83],
+    [587.33, 82.41], [523.25, 82.41], [493.88, 110.00], [523.25, 110.00]
+  ],
+
+  _bgmNote: function (freq, t0, dur, type, vol) {
+    if (!this.ctx) return;
+    var osc = this.ctx.createOscillator();
+    var g = this.ctx.createGain();
+    osc.type = type || 'triangle';
+    osc.frequency.setValueAtTime(freq, t0);
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(vol || 0.2, t0 + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    osc.connect(g); g.connect(this.bgmGain);
+    osc.start(t0); osc.stop(t0 + dur + 0.02);
+  },
+
+  _bgmScheduler: function () {
+    if (!this.bgmOn || !this.ctx) return;
+    var self = this;
+    var lookahead = 0.25;     // 提前调度 250ms，防止卡顿断音
+    while (this.bgmNext < this.ctx.currentTime + lookahead) {
+      var note = this.BGM[this.bgmStep % this.BGM.length];
+      var dur = this.bgmBeat * 0.92;   // 留间隙，避免音符黏连
+      if (note[0] > 0) this._bgmNote(note[0], this.bgmNext, dur, 'triangle', 0.22);
+      if (note[1] > 0) this._bgmNote(note[1], this.bgmNext, dur, 'square', 0.11);
+      this.bgmNext += this.bgmBeat;
+      this.bgmStep++;
+    }
+    this.bgmTimer = setTimeout(function () { self._bgmScheduler(); }, 60);
+  },
+
+  startBGM: function () {
+    if (!this.ctx || !this.enabled || this.bgmOn) return;
+    this.bgmOn = true;
+    this.bgmStep = 0;
+    this.bgmNext = this.ctx.currentTime + 0.08;
+    this._bgmScheduler();
+  },
+
+  stopBGM: function () {
+    this.bgmOn = false;
+    if (this.bgmTimer) { clearTimeout(this.bgmTimer); this.bgmTimer = null; }
+  },
+
+  /* 统一开关：want=true 且未静音则播放，否则停止 */
+  setBGM: function (want) {
+    if (want && this.enabled && this.ctx) this.startBGM();
+    else this.stopBGM();
   }
 };
 
@@ -3388,6 +3471,7 @@ var cv, ctx, elStage, elOverlay, elTitle, elSub, elStats, elTips, elRow, elPrevi
 var elNetPanel, elNetStatus, elNetCode, elNetInput;
 var hudStage, hudLife, hudEnemy, hudScore, hudBest, btnSound;
 var lastState = '';
+var bgmWanted = false;   // 主循环据此判断 BGM 是否需要播放，只在状态变化时调用 setBGM
 
 function $(id) { return document.getElementById(id); }
 
@@ -3506,8 +3590,18 @@ function showPause() {
     '',
     [
       { text: '继续', onClick: function () { togglePause(); } },
-      { text: '重新开始', ghost: true, onClick: function () { startGame(G.forceRandom); } }
+      { text: '重新开始', ghost: true, onClick: function () { startGame(G.forceRandom); } },
+      { text: '退出', ghost: true, onClick: function () { exitToMenu(); } }
     ]);
+}
+
+/* 从暂停（或游戏中）退出到主菜单：停止对局并复位为第 1 关作菜单背景 */
+function exitToMenu() {
+  if (Net && Net.mode && Net.mode !== 'off') Net.disconnect();
+  G.state = 'menu';
+  startStage(1);
+  lastState = '';
+  showMenu();
 }
 
 function showStageClear() {
@@ -3716,6 +3810,9 @@ function loop(ts) {
   render(ctx);
   updateHUD();
   if (G.state !== lastState) refreshOverlay();
+  /* 背景音乐：仅在"游戏中"播放，其余状态（暂停/菜单/结算/过场）自动停止 */
+  var wantBGM = (G.state === 'playing');
+  if (wantBGM !== bgmWanted) { Sound.setBGM(wantBGM); bgmWanted = wantBGM; }
 }
 
 /* --------------------------------------------------------------------------
@@ -3746,6 +3843,7 @@ function boot() {
     Sound.unlock();
     Sound.enabled = !Sound.enabled;
     btnSound.textContent = Sound.enabled ? '🔊' : '🔇';
+    Sound.setBGM(G.state === 'playing');   // 静音同步到 BGM
   });
 
   /* 尺寸自适应：旋转屏幕 / 地址栏收放都会触发 */
@@ -3754,6 +3852,12 @@ function boot() {
   window.addEventListener('orientationchange', function () { setTimeout(measure, 250); });
   if (window.visualViewport) window.visualViewport.addEventListener('resize', measure);
   setTimeout(measure, 300);
+
+  /* 切到后台时停 BGM，回到前台且仍在游戏中则恢复，避免后台出声与回前台爆音 */
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden) Sound.stopBGM();
+    else if (G.state === 'playing') Sound.startBGM();
+  });
 
   /* 调试 / 调参接口：挂在 window 上，方便在控制台改数值、跳关、快进模拟 */
   window.TankDebug = {

@@ -1,0 +1,200 @@
+{
+ "0": [
+  {
+   "group": 0,
+   "index": 0,
+   "x": 0,
+   "y": 0,
+   "ticks": 10
+  },
+  {
+   "group": 0,
+   "index": 1,
+   "x": 0,
+   "y": 0,
+   "ticks": 10
+  },
+  {
+   "group": 0,
+   "index": 2,
+   "x": 0,
+   "y": 0,
+   "ticks": 10
+  }
+ ],
+ "10": [
+  {
+   "group": 11,
+   "index": 0,
+   "x": 0,
+   "y": 0,
+   "ticks": 2
+  },
+  {
+   "group": 11,
+   "index": 1,
+   "x": 0,
+   "y": 0,
+   "ticks": 2
+  }
+ ],
+ "11": [
+  {
+   "group": 11,
+   "index": 2,
+   "x": 0,
+   "y": 0,
+   "ticks": 15
+  },
+  {
+   "group": 11,
+   "index": 2,
+   "x": 0,
+   "y": 1,
+   "ticks": 15
+  }
+ ],
+ "20": [
+  {
+   "group": 20,
+   "index": 0,
+   "x": 0,
+   "y": 0,
+   "ticks": 6
+  },
+  {
+   "group": 20,
+   "index": 1,
+   "x": 0,
+   "y": 0,
+   "ticks": 6
+  },
+  {
+   "group": 20,
+   "index": 2,
+   "x": 0,
+   "y": 0,
+   "ticks": 6
+  }
+ ],
+ "200": [
+  {
+   "group": 200,
+   "index": 0,
+   "x": 0,
+   "y": 0,
+   "ticks": 2
+  },
+  {
+   "group": 200,
+   "index": 1,
+   "x": 0,
+   "y": 0,
+   "ticks": 10
+  },
+  {
+   "group": 200,
+   "index": 0,
+   "x": 0,
+   "y": 0,
+   "ticks": 5
+  }
+ ],
+ "210": [
+  {
+   "group": 202,
+   "index": 0,
+   "x": 0,
+   "y": 0,
+   "ticks": 5
+  },
+  {
+   "group": 202,
+   "index": 1,
+   "x": 0,
+   "y": 0,
+   "ticks": 12
+  },
+  {
+   "group": 202,
+   "index": 0,
+   "x": 0,
+   "y": 0,
+   "ticks": 3
+  },
+  {
+   "group": 230,
+   "index": 0,
+   "x": 0,
+   "y": 0,
+   "ticks": 3
+  }
+ ],
+ "230": [
+  {
+   "group": 230,
+   "index": 0,
+   "x": 0,
+   "y": 0,
+   "ticks": 2
+  },
+  {
+   "group": 230,
+   "index": 1,
+   "x": 0,
+   "y": 0,
+   "ticks": 15
+  },
+  {
+   "group": 230,
+   "index": 0,
+   "x": 0,
+   "y": 0,
+   "ticks": 3
+  }
+ ],
+ "240": [
+  {
+   "group": 230,
+   "index": 0,
+   "x": 0,
+   "y": 0,
+   "ticks": 2
+  },
+  {
+   "group": 230,
+   "index": 0,
+   "x": 0,
+   "y": 0,
+   "ticks": 2
+  },
+  {
+   "group": 240,
+   "index": 2,
+   "x": 0,
+   "y": 0,
+   "ticks": 5
+  },
+  {
+   "group": 240,
+   "index": 2,
+   "x": 0,
+   "y": 0,
+   "ticks": 10
+  },
+  {
+   "group": 230,
+   "index": 0,
+   "x": 0,
+   "y": 0,
+   "ticks": 4
+  },
+  {
+   "group": 230,
+   "index": 0,
+   "x": 0,
+   "y": 0,
+   "ticks": 4
+  }
+ ]
+}

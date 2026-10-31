@@ -1,0 +1,149 @@
+[
+ {
+  "id": "yusuke",
+  "name": "Yusuke_G1_Mega",
+  "portrait": "09000_0000.png",
+  "sprites": 22,
+  "actions": 8
+ },
+ {
+  "id": "youkai_yusuke",
+  "name": "Youkai_Yusuke_G1",
+  "portrait": "09000_0000.png",
+  "sprites": 24,
+  "actions": 8
+ },
+ {
+  "id": "hiei",
+  "name": "Hiei_G1",
+  "portrait": "09000_0000.png",
+  "sprites": 25,
+  "actions": 8
+ },
+ {
+  "id": "kurama",
+  "name": "Kurama_G1",
+  "portrait": "09000_0000.png",
+  "sprites": 22,
+  "actions": 8
+ },
+ {
+  "id": "yoko_kurama",
+  "name": "Yoko_Kurama_G1",
+  "portrait": "09000_0000.png",
+  "sprites": 21,
+  "actions": 8
+ },
+ {
+  "id": "kuwabara",
+  "name": "Kuwabara_Mega_G1",
+  "portrait": "09000_0000.png",
+  "sprites": 27,
+  "actions": 8
+ },
+ {
+  "id": "toguro",
+  "name": "Toguro_G1",
+  "portrait": "09000_0000.png",
+  "sprites": 26,
+  "actions": 8
+ },
+ {
+  "id": "elder_toguro",
+  "name": "Elder Toguro_Br",
+  "portrait": "09000_0000.png",
+  "sprites": 29,
+  "actions": 8
+ },
+ {
+  "id": "genkai",
+  "name": "Genkai_G1",
+  "portrait": "09000_0000.png",
+  "sprites": 28,
+  "actions": 8
+ },
+ {
+  "id": "sensui",
+  "name": "Sensui_G1",
+  "portrait": "09000_0000.png",
+  "sprites": 27,
+  "actions": 8
+ },
+ {
+  "id": "sensui_arm",
+  "name": "Sensui_ARM_G1",
+  "portrait": "09000_0000.png",
+  "sprites": 21,
+  "actions": 8
+ },
+ {
+  "id": "yomi",
+  "name": "Yomi_G1",
+  "portrait": "09000_0000.png",
+  "sprites": 23,
+  "actions": 8
+ },
+ {
+  "id": "mukuro",
+  "name": "Mukuro_G1",
+  "portrait": "09000_0000.png",
+  "sprites": 23,
+  "actions": 8
+ },
+ {
+  "id": "raizen",
+  "name": "Raizen_G1",
+  "portrait": "09000_0000.png",
+  "sprites": 24,
+  "actions": 8
+ },
+ {
+  "id": "jin",
+  "name": "Jin_G1",
+  "portrait": "09000_0000.png",
+  "sprites": 18,
+  "actions": 8
+ },
+ {
+  "id": "itsuke",
+  "name": "Itsuke_G1",
+  "portrait": "09000_0000.png",
+  "sprites": 30,
+  "actions": 8
+ },
+ {
+  "id": "shishiwakamaru",
+  "name": "Shishiwakamaru_G1",
+  "portrait": "09000_0000.png",
+  "sprites": 17,
+  "actions": 8
+ },
+ {
+  "id": "shigure",
+  "name": "Shigure_G1",
+  "portrait": "09000_0000.png",
+  "sprites": 23,
+  "actions": 8
+ },
+ {
+  "id": "shura",
+  "name": "Shura_G1",
+  "portrait": "09000_0000.png",
+  "sprites": 19,
+  "actions": 8
+ },
+ {
+  "id": "tiyu",
+  "name": "Tiyu_G1",
+  "portrait": "09000_0000.png",
+  "sprites": 22,
+  "actions": 8
+ },
+ {
+  "id": "yakumo",
+  "name": "Yakumo_G1",
+  "portrait": "09000_0000.png",
+  "sprites": 23,
+  "actions": 8
+ }
+]

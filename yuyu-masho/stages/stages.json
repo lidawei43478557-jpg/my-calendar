@@ -1,0 +1,202 @@
+[
+ {
+  "id": "Akuukann",
+  "name": "Akuukann",
+  "bg": "stages/Akuukann/bg.png",
+  "fg": null,
+  "w": 1644,
+  "h": 1127
+ },
+ {
+  "id": "Armazem",
+  "name": "Armazem",
+  "bg": "stages/Armazem/bg.png",
+  "fg": null,
+  "w": 1421,
+  "h": 611
+ },
+ {
+  "id": "Caverna",
+  "name": "Caverna",
+  "bg": "stages/Caverna/bg.png",
+  "fg": null,
+  "w": 1434,
+  "h": 1116
+ },
+ {
+  "id": "Construção",
+  "name": "Construção",
+  "bg": "stages/Construção/bg.png",
+  "fg": null,
+  "w": 11419,
+  "h": 913
+ },
+ {
+  "id": "Final_Yakumo",
+  "name": "Final_Yakumo",
+  "bg": "stages/Final_Yakumo/bg.png",
+  "fg": null,
+  "w": 1534,
+  "h": 894
+ },
+ {
+  "id": "Genkai_Dojo",
+  "name": "Genkai_Dojo",
+  "bg": "stages/Genkai_Dojo/bg.png",
+  "fg": null,
+  "w": 1644,
+  "h": 1139
+ },
+ {
+  "id": "Hiei_fighter",
+  "name": "Hiei_fighter",
+  "bg": "stages/Hiei_fighter/bg.png",
+  "fg": null,
+  "w": 1756,
+  "h": 960
+ },
+ {
+  "id": "Itsuki",
+  "name": "Itsuki",
+  "bg": "stages/Itsuki/bg.png",
+  "fg": null,
+  "w": 1644,
+  "h": 1002
+ },
+ {
+  "id": "Jin_Tiyu",
+  "name": "Jin_Tiyu",
+  "bg": "stages/Jin_Tiyu/bg.png",
+  "fg": null,
+  "w": 1414,
+  "h": 847
+ },
+ {
+  "id": "Kurama",
+  "name": "Kurama",
+  "bg": "stages/Kurama/bg.png",
+  "fg": null,
+  "w": 2036,
+  "h": 640
+ },
+ {
+  "id": "Makai_01",
+  "name": "Makai_01",
+  "bg": "stages/Makai_01/bg.png",
+  "fg": null,
+  "w": 1536,
+  "h": 422
+ },
+ {
+  "id": "Makai_Sensui",
+  "name": "Makai_Sensui",
+  "bg": "stages/Makai_Sensui/bg.png",
+  "fg": null,
+  "w": 1536,
+  "h": 588
+ },
+ {
+  "id": "Makai_Torneio",
+  "name": "Makai_Torneio",
+  "bg": "stages/Makai_Torneio/bg.png",
+  "fg": null,
+  "w": 1536,
+  "h": 669
+ },
+ {
+  "id": "Navio",
+  "name": "Navio",
+  "bg": "stages/Navio/bg.png",
+  "fg": null,
+  "w": 11419,
+  "h": 913
+ },
+ {
+  "id": "Primeira_Luta_Sensui",
+  "name": "Primeira_Luta_Sensui",
+  "bg": "stages/Primeira_Luta_Sensui/bg.png",
+  "fg": null,
+  "w": 1644,
+  "h": 1002
+ },
+ {
+  "id": "Raizen",
+  "name": "Raizen",
+  "bg": "stages/Raizen/bg.png",
+  "fg": null,
+  "w": 1414,
+  "h": 797
+ },
+ {
+  "id": "Sensui_Tunel",
+  "name": "Sensui_Tunel",
+  "bg": "stages/Sensui_Tunel/bg.png",
+  "fg": null,
+  "w": 1780,
+  "h": 721
+ },
+ {
+  "id": "stage0-720",
+  "name": "stage0-720",
+  "bg": "stages/stage0-720/bg.png",
+  "fg": null,
+  "w": 3200,
+  "h": 1072
+ },
+ {
+  "id": "Times_Torneio",
+  "name": "Times_Torneio",
+  "bg": "stages/Times_Torneio/bg.png",
+  "fg": null,
+  "w": 1414,
+  "h": 847
+ },
+ {
+  "id": "Toguro",
+  "name": "Toguro",
+  "bg": "stages/Toguro/bg.png",
+  "fg": null,
+  "w": 1536,
+  "h": 663
+ },
+ {
+  "id": "Toguro100%",
+  "name": "Toguro100%",
+  "bg": "stages/Toguro100%/bg.png",
+  "fg": null,
+  "w": 1536,
+  "h": 663
+ },
+ {
+  "id": "Youko_Kurama",
+  "name": "Youko_Kurama",
+  "bg": "stages/Youko_Kurama/bg.png",
+  "fg": null,
+  "w": 1454,
+  "h": 846
+ },
+ {
+  "id": "YuGelo",
+  "name": "YuGelo",
+  "bg": "stages/YuGelo/bg.png",
+  "fg": null,
+  "w": 2186,
+  "h": 1559
+ },
+ {
+  "id": "Yukina_Sequestro",
+  "name": "Yukina_Sequestro",
+  "bg": "stages/Yukina_Sequestro/bg.png",
+  "fg": null,
+  "w": 1536,
+  "h": 846
+ },
+ {
+  "id": "Yusuke_Moom",
+  "name": "Yusuke_Moom",
+  "bg": "stages/Yusuke_Moom/bg.png",
+  "fg": null,
+  "w": 1414,
+  "h": 937
+ }
+]

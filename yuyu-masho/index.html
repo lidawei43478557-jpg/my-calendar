@@ -31,11 +31,11 @@
           } catch (e) { /* 忽略 */ }
           try {
             var el = document.getElementById('game');
-            var doc = document as any;
+            var doc = document;
             if (!doc.fullscreenElement && el && el.requestFullscreen) {
               el.requestFullscreen().catch(function () {});
-            } else if (!doc.webkitFullscreenElement && el && (el as any).webkitRequestFullscreen) {
-              (el as any).webkitRequestFullscreen();
+            } else if (!doc.webkitFullscreenElement && el && el.webkitRequestFullscreen) {
+              el.webkitRequestFullscreen();
             }
           } catch (e) { /* 忽略：iOS 不支持 div 全屏，静默 */ }
         }
